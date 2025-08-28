@@ -1,0 +1,186 @@
+{
+  "metadata": {
+    "url": "https://infogram.com/cabaz-alimentar-desde-2022-adl-1hmr6g8oqqrwz2n",
+    "extraction_date": "2025-08-27T12:46:35.229138",
+    "total_records": 17,
+    "description": "Preços do Cabaz Alimentar ADL - Datas e Valores em Euros"
+  },
+  "cabaz_records": [
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 180.0,
+      "Texto_Original": "180,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 190.0,
+      "Texto_Original": "190,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 200.0,
+      "Texto_Original": "200,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 210.0,
+      "Texto_Original": "210,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 220.0,
+      "Texto_Original": "220,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 230.0,
+      "Texto_Original": "230,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 240.0,
+      "Texto_Original": "240,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 250.0,
+      "Texto_Original": "250,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 241.17,
+      "Texto_Original": "241,17 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 180.0,
+      "Texto_Original": "180,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 190.0,
+      "Texto_Original": "190,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 200.0,
+      "Texto_Original": "200,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 210.0,
+      "Texto_Original": "210,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 220.0,
+      "Texto_Original": "220,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 230.0,
+      "Texto_Original": "230,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 240.0,
+      "Texto_Original": "240,00 €"
+    },
+    {
+      "Data": "Data não identificada",
+      "Valor_Euros": 250.0,
+      "Texto_Original": "250,00 €"
+    }
+  ],
+  "raw_extraction": {
+    "text_values": [
+      {
+        "text": "180,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "190,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "200,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "210,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "220,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "230,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "240,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "250,00 €",
+        "tag": "text",
+        "class": null
+      },
+      {
+        "text": "241,17 €",
+        "tag": "span",
+        "class": ""
+      }
+    ],
+    "svg_data": [
+      {
+        "content": "180,00 €",
+        "x": null,
+        "y": null
+      },
+      {
+        "content": "190,00 €",
+        "x": null,
+        "y": null
+      },
+      {
+        "content": "200,00 €",
+        "x": null,
+        "y": null
+      },
+      {
+        "content": "210,00 €",
+        "x": null,
+        "y": null
+      },
+      {
+        "content": "220,00 €",
+        "x": null,
+        "y": null
+      },
+      {
+        "content": "230,00 €",
+        "x": null,
+        "y": null
+      },
+      {
+        "content": "240,00 €",
+        "x": null,
+        "y": null
+      },
+      {
+        "content": "250,00 €",
+        "x": null,
+        "y": null
+      }
+    ]
+  }
+}
