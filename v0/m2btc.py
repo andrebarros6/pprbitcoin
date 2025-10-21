@@ -18,13 +18,17 @@ st.markdown("---")
 # Load and process data
 @st.cache_data
 def load_data():
+    # Get the directory where this script is located
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
     # Load BTC data
-    btc_eur = pd.read_csv(r"BTC_EUR Kraken Historical Data (1).csv")
+    btc_eur = pd.read_csv(os.path.join(script_dir, "BTC_EUR Kraken Historical Data (1).csv"))
     btc_eur['Date'] = pd.to_datetime(btc_eur['Date'])
     btc_eur['Price'] = btc_eur['Price'].str.replace(',', '').astype(float)
 
     # Load real estate data
-    imob_pt = pd.read_csv(r"m2-casas-PT.csv")
+    imob_pt = pd.read_csv(os.path.join(script_dir, "m2-casas-PT.csv"))
     imob_pt['Date'] = pd.to_datetime(imob_pt['Mes'], format='%d-%m-%Y')
 
     # Merge datasets
