@@ -11,6 +11,18 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for better styling
+st.markdown("""
+    <style>
+    .stats-container {
+        background-color: #1E1E1E;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # Title
 st.title("🏠 Preço por m² em Portugal - EUR vs BTC")
 st.markdown("---")
@@ -80,12 +92,60 @@ if len(date_range) == 2:
 else:
     filtered_df = df
 
+# Check if we have data
+if len(filtered_df) == 0:
+    st.warning("Nenhum dado disponível para o período selecionado.")
+    st.stop()
+
 # Display summary statistics
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Estatísticas")
 st.sidebar.metric("Período selecionado", f"{len(filtered_df)} meses")
 st.sidebar.metric("EUR/m² (atual)", f"€{filtered_df['Preco m2 [EUR]'].iloc[-1]:,.0f}")
 st.sidebar.metric("BTC/m² (atual)", f"{filtered_df['Preco m2 [BTC]'].iloc[-1]:.6f} BTC")
+
+# Explanatory text
+st.markdown("""
+<div style='background-color: #1a1a1a; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem; border-left: 4px solid #f39c12;'>
+    <p style='font-size: 1.1rem; line-height: 1.6; margin-bottom: 1rem;'>
+    Nos últimos anos, o aumento da oferta monetária tem contribuído para a inflação, fazendo com que os preços dos imóveis em Portugal aumentem constantemente.
+    \n Isto significa que os teus euros compram cada vez menos metros quadrados.
+    \n A Bitcoin, com a sua oferta limitada a 21 milhões de unidades, surge como uma ferramenta de proteção do poder de compra.
+    \n Como podes comprovar no gráfico abaixo, o mesmo metro quadrado que fica cada vez mais caro em euros, fica progressivamente mais barato quando medido em Bitcoin.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# Calculate EUR variation for impact statement
+if len(filtered_df) > 1:
+    first = filtered_df.iloc[0]
+    latest = filtered_df.iloc[-1]
+    eur_change = ((latest['Preco m2 [EUR]'] - first['Preco m2 [EUR]']) / first['Preco m2 [EUR]']) * 100
+
+    # Determine word and color based on price change
+    if eur_change > 0:
+        # Price increased - more expensive (red)
+        price_word = "caro"
+        color = "#e74c3c"  # Red
+    else:
+        # Price decreased - cheaper (green)
+        price_word = "barato"
+        color = "#2ecc71"  # Green
+
+    abs_change = abs(eur_change)
+
+    # Impact statement with dynamic percentage
+    st.markdown(f"""
+    <div style='text-align: center; padding: 1.5rem; margin-bottom: 2rem;'>
+        <p style='font-size: 1.5rem; margin: 0;'>
+            <span style='color: white;'>No período selecionado, o imóvel está</span>
+            <span style='color: {color}; font-weight: bold;'> {abs_change:.1f}% mais {price_word}</span><span style='color: white;'>.</span>
+        </p>
+        <p style='font-size: 1.3rem; color: #bbb; margin-top: 0.5rem;'>
+            Quanto aumentou o teu salário?
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Create Plotly figure
 fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -157,32 +217,49 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.subheader("📈 Análise Comparativa")
 
-col1, col2 = st.columns(2)
+if len(filtered_df) > 1:
+    # Calculate variations
+    first = filtered_df.iloc[0]
+    latest = filtered_df.iloc[-1]
 
-with col1:
-    st.metric(
-        "Variação EUR/m²",
-        f"€{filtered_df['Preco m2 [EUR]'].iloc[-1]:,.0f}",
-        f"{((filtered_df['Preco m2 [EUR]'].iloc[-1] / filtered_df['Preco m2 [EUR]'].iloc[0]) - 1) * 100:.2f}%"
-    )
+    # EUR absolute and percentage variation
+    eur_absolute = latest['Preco m2 [EUR]'] - first['Preco m2 [EUR]']
+    eur_percent = (eur_absolute / first['Preco m2 [EUR]']) * 100
+    eur_sign = "+ " if eur_absolute >= 0 else "- "
 
-with col2:
-    st.metric(
-        "Variação BTC/m²",
-        f"{filtered_df['Preco m2 [BTC]'].iloc[-1]:.6f}",
-        f"{((filtered_df['Preco m2 [BTC]'].iloc[-1] / filtered_df['Preco m2 [BTC]'].iloc[0]) - 1) * 100:.2f}%"
-    )
+    # BTC absolute and percentage variation
+    btc_absolute = latest['Preco m2 [BTC]'] - first['Preco m2 [BTC]']
+    btc_percent = (btc_absolute / first['Preco m2 [BTC]']) * 100
+    btc_sign = "+ " if btc_absolute >= 0 else "- "
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric(
+            "Variação EUR/m²",
+            f"{eur_sign}€{abs(eur_absolute):,.0f}",
+            f"{eur_percent:.2f}%",
+            delta_color="inverse"  # Red for increase, green for decrease
+        )
+
+    with col2:
+        st.metric(
+            "Variação BTC/m²",
+            f"{btc_sign}{abs(btc_absolute):.6f} BTC",
+            f"{btc_percent:.2f}%",
+            delta_color="inverse"  # Red for increase, green for decrease
+        )
 
 # Display data table
 st.markdown("---")
 st.subheader("📊 Dados")
 with st.expander("Ver tabela de dados"):
-    display_df = filtered_df[['Date', 'Preco m2 [EUR]', 'Preco m2 [BTC]', 'Price']].copy()
-    display_df.columns = ['Data', 'EUR/m²', 'BTC/m²', 'Preço BTC (EUR)']
+    display_df = filtered_df[['Date', 'Preco m2 [EUR]', 'Preco m2 [BTC]']].copy()
+    display_df.columns = ['Data', 'EUR/m²', 'BTC/m²']
     display_df['Data'] = display_df['Data'].dt.strftime('%Y-%m-%d')
     display_df['EUR/m²'] = display_df['EUR/m²'].apply(lambda x: f"€{x:,.0f}")
     display_df['BTC/m²'] = display_df['BTC/m²'].apply(lambda x: f"{x:.6f}")
-    display_df['Preço BTC (EUR)'] = display_df['Preço BTC (EUR)'].apply(lambda x: f"€{x:,.2f}")
+    # display_df['Preço BTC (EUR)'] = display_df['Preço BTC (EUR)'].apply(lambda x: f"€{x:,.2f}")
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # Footer
