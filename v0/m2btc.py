@@ -57,7 +57,7 @@ date_range = st.sidebar.date_input(
 )
 
 # Log scale toggle
-use_log_scale = st.sidebar.checkbox("Escala logarítmica para BTC", value=True)
+use_log_scale = st.sidebar.checkbox("Escala logarítmica para BTC", value=False)
 
 # Preset date ranges
 st.sidebar.markdown("### Atalhos")
@@ -157,7 +157,7 @@ st.plotly_chart(fig, use_container_width=True)
 st.markdown("---")
 st.subheader("📈 Análise Comparativa")
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
@@ -171,13 +171,6 @@ with col2:
         "Variação BTC/m²",
         f"{filtered_df['Preco m2 [BTC]'].iloc[-1]:.6f}",
         f"{((filtered_df['Preco m2 [BTC]'].iloc[-1] / filtered_df['Preco m2 [BTC]'].iloc[0]) - 1) * 100:.2f}%"
-    )
-
-with col3:
-    st.metric(
-        "Preço BTC",
-        f"€{filtered_df['Price'].iloc[-1]:,.2f}",
-        f"{((filtered_df['Price'].iloc[-1] / filtered_df['Price'].iloc[0]) - 1) * 100:.2f}%"
     )
 
 # Display data table
@@ -197,7 +190,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: gray;'>
-    <small>Dados: Kraken (BTC/EUR) via Investing.com e mercado imobiliário português via idealista.pt</small>
+    <small>Dados: BTC/EUR na corretora Kraken via Investing.com e mercado imobiliário português via idealista.pt</small>
     </div>
     """,
     unsafe_allow_html=True
