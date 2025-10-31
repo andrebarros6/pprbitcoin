@@ -23,7 +23,10 @@ def parse_portuguese_date(date_str):
 @st.cache_data
 def load_data():
     """Load and process the food basket data"""
-    df = pd.read_csv('infogram_data_with_btc.csv')
+    # Get the directory where this script is located
+    script_dir = Path(__file__).parent
+    csv_path = script_dir / 'infogram_data_with_btc.csv'
+    df = pd.read_csv(csv_path)
 
     # Parse dates
     df['Date_parsed'] = df['Date'].apply(parse_portuguese_date)
