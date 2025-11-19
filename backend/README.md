@@ -94,6 +94,18 @@ O servidor estará disponível em:
 - `GET /api/v1/bitcoin/historical` - Dados históricos de Bitcoin (EUR)
 - `GET /api/v1/bitcoin/latest` - Preço mais recente de Bitcoin
 
+### Portfolio (NEW - Phase 3) 🎯
+
+- `POST /api/v1/portfolio/calculate` - Calcular performance de um portfolio
+  - Backtesting histórico com PPR + Bitcoin
+  - Métricas financeiras completas (CAGR, Sharpe, drawdown, etc.)
+  - Rebalanceamento configurável (mensal, trimestral, anual)
+- `POST /api/v1/portfolio/compare` - Comparar múltiplas estratégias de portfolio
+  - Comparação lado-a-lado de 2-5 portfolios
+  - Análise de diferentes alocações de Bitcoin (0%, 10%, 20%, 30%)
+  - Sumário de comparação com recomendação
+- `GET /api/v1/portfolio/metrics` - Documentação das métricas disponíveis
+
 ### Sistema
 
 - `GET /` - Info da API
@@ -106,11 +118,19 @@ backend/
 ├── api/
 │   └── routes/
 │       ├── ppr.py          # Endpoints de PPRs
-│       └── bitcoin.py      # Endpoints de Bitcoin
+│       ├── bitcoin.py      # Endpoints de Bitcoin
+│       └── portfolio.py    # Endpoints de Portfolio (NEW)
 ├── models/
 │   ├── ppr.py              # Models PPR e PPRHistoricalData
-│   └── bitcoin.py          # Model BitcoinHistoricalData
-├── services/               # Lógica de negócio (futuro)
+│   ├── bitcoin.py          # Model BitcoinHistoricalData
+│   └── portfolio.py        # Schemas de Portfolio (NEW)
+├── services/
+│   ├── portfolio_calculator.py  # Cálculo de portfolios (NEW)
+│   ├── bitcoin_updater.py       # Atualização de Bitcoin
+│   ├── ppr_scraper.py           # Scraper de PPRs
+│   └── scheduler.py             # Agendamento de tarefas
+├── tests/
+│   └── test_portfolio_calculator.py  # Testes unitários (NEW)
 ├── migrations/             # Migrations Alembic
 ├── app.py                  # Aplicação FastAPI principal
 ├── config.py               # Configurações
@@ -157,12 +177,18 @@ mypy .
    - **Username**: pprbitcoin
    - **Password**: pprbitcoin_dev_password
 
-## Próximos Passos (Fase 2)
+## Status do Projeto
 
-- [ ] Implementar scrapers para dados de PPRs
-- [ ] Integrar CoinGecko API para Bitcoin
-- [ ] Popular base de dados com dados históricos
-- [ ] Implementar APScheduler para updates automáticos
+✅ **Fase 1**: Foundation (API básica) - **COMPLETA**
+✅ **Fase 2**: Data Pipeline (Scrapers & APIs) - **COMPLETA**
+✅ **Fase 3**: Core Logic (Cálculo de portfolios) - **COMPLETA**
+
+### Próximos Passos (Fase 4)
+
+- [ ] Implementar Frontend React com TypeScript
+- [ ] Criar componentes de visualização de portfolios
+- [ ] Adicionar gráficos interativos (Recharts)
+- [ ] Interface de comparação de estratégias
 
 ## Troubleshooting
 

@@ -79,7 +79,7 @@ def populate_ppr_historical_data(years: int = 5):
         pprs = db.query(PPR).all()
 
         if not pprs:
-            print("❌ No PPRs found in database. Run populate_pprs.py first!")
+            print("[ERROR] No PPRs found in database. Run populate_pprs.py first!")
             return
 
         end_date = datetime.now()
@@ -99,7 +99,7 @@ def populate_ppr_historical_data(years: int = 5):
             else:  # Dinâmico
                 initial_value = Decimal("4.0000")
 
-            print(f"📈 {ppr.nome} ({ppr.categoria})...")
+            print(f"[DATA] {ppr.nome} ({ppr.categoria})...")
 
             # Generate sample data
             records = generate_sample_data(ppr, start_date, end_date, initial_value)
@@ -128,7 +128,7 @@ def populate_ppr_historical_data(years: int = 5):
             # Show summary
             final_value = records[-1]['valor_quota']
             total_return = ((final_value - initial_value) / initial_value) * 100
-            print(f"   ✓ Added {count} records")
+            print(f"   [OK] Added {count} records")
             print(f"   Initial: {initial_value} EUR → Final: {final_value} EUR")
             print(f"   Total return: {total_return:.2f}%\n")
 
@@ -137,7 +137,7 @@ def populate_ppr_historical_data(years: int = 5):
         print("=" * 70)
 
         # Show statistics
-        print("\n📊 Database Statistics:")
+        print("\n[STATS] Database Statistics:")
         for ppr in pprs:
             count = db.query(PPRHistoricalData).filter(
                 PPRHistoricalData.ppr_id == ppr.id
@@ -146,7 +146,7 @@ def populate_ppr_historical_data(years: int = 5):
 
     except Exception as e:
         db.rollback()
-        print(f"\n❌ Error: {e}")
+        print(f"\n[ERROR] Error: {e}")
         raise
     finally:
         db.close()
@@ -194,6 +194,6 @@ if __name__ == "__main__":
     show_sample_data()
 
     print("\n" + "=" * 70)
-    print("⚠️  NOTE: This is SAMPLE DATA for demonstration purposes")
+    print("[WARNING]  NOTE: This is SAMPLE DATA for demonstration purposes")
     print("In production, this would be replaced by actual scraped data")
     print("=" * 70)

@@ -23,7 +23,7 @@ def load_csv_data(csv_path: str):
     Args:
         csv_path: Path to CSV file
     """
-    print(f"📂 Loading data from {csv_path}...")
+    print(f"[CSV] Loading data from {csv_path}...")
 
     # Read CSV
     df = pd.read_csv(csv_path)
@@ -62,7 +62,7 @@ def load_csv_data(csv_path: str):
 
     except Exception as e:
         db.rollback()
-        print(f"❌ Error: {e}")
+        print(f"[ERROR] Error: {e}")
         raise
     finally:
         db.close()
@@ -75,7 +75,7 @@ async def fetch_coingecko_data(days: int = 1825):
     Args:
         days: Number of days to fetch (default: 5 years)
     """
-    print(f"\n🌐 Fetching {days} days from CoinGecko API...")
+    print(f"\n[API] Fetching {days} days from CoinGecko API...")
 
     updater = BitcoinUpdater()
     result = await updater.populate_historical(days)
@@ -84,14 +84,14 @@ async def fetch_coingecko_data(days: int = 1825):
         print(f"✅ Success! Processed {result['records_processed']} records")
         print(f"📅 Date range: {result['date_range']['from']} to {result['date_range']['to']}")
     else:
-        print(f"❌ Error: {result['error']}")
+        print(f"[ERROR] Error: {result['error']}")
 
 
 def check_database():
     """
     Check current state of database
     """
-    print("\n📊 Database Statistics:")
+    print("\n[STATS] Database Statistics:")
 
     db = SessionLocal()
     try:
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     if os.path.exists(csv_path):
         load_csv_data(csv_path)
     else:
-        print(f"⚠️  CSV file not found at {csv_path}")
+        print(f"[WARNING]  CSV file not found at {csv_path}")
         print("Skipping CSV import...")
 
     # Fetch data from CoinGecko

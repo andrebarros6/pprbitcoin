@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from config import settings
 from database import init_db
-from api.routes import ppr, bitcoin
+from api.routes import ppr, bitcoin, portfolio
 
 
 @asynccontextmanager
@@ -16,12 +16,12 @@ async def lifespan(app: FastAPI):
     Application lifespan events
     """
     # Startup
-    print("🚀 Starting PPR Bitcoin API...")
+    print("[START] Starting PPR Bitcoin API...")
     init_db()
-    print("✅ Database initialized")
+    print("[OK] Database initialized")
     yield
     # Shutdown
-    print("👋 Shutting down PPR Bitcoin API...")
+    print("[STOP] Shutting down PPR Bitcoin API...")
 
 
 # Create FastAPI app
@@ -46,6 +46,7 @@ app.add_middleware(
 # Include routers
 app.include_router(ppr.router, prefix=f"/api/{settings.API_VERSION}")
 app.include_router(bitcoin.router, prefix=f"/api/{settings.API_VERSION}")
+app.include_router(portfolio.router, prefix=f"/api/{settings.API_VERSION}")
 
 
 @app.get("/")

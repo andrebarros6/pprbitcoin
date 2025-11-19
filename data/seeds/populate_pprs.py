@@ -111,18 +111,18 @@ def populate_pprs():
                 existing.categoria = ppr_data['categoria']
                 existing.taxa_gestao = ppr_data['taxa_gestao']
                 updated += 1
-                print(f"   ↻ Updated: {ppr_data['nome']}")
+                print(f"   [UPDATED] {ppr_data['nome']}")
             else:
                 # Create new PPR
                 new_ppr = PPR(**ppr_data)
                 db.add(new_ppr)
                 count += 1
-                print(f"   ✓ Added: {ppr_data['nome']}")
+                print(f"   [ADDED] {ppr_data['nome']}")
 
         db.commit()
 
         print("\n" + "=" * 60)
-        print(f"✅ Success!")
+        print(f"[SUCCESS]")
         print(f"   New PPRs added: {count}")
         print(f"   PPRs updated: {updated}")
         print(f"   Total PPRs in database: {db.query(PPR).count()}")
@@ -130,7 +130,7 @@ def populate_pprs():
 
     except Exception as e:
         db.rollback()
-        print(f"\n❌ Error: {e}")
+        print(f"\n[ERROR] {e}")
         raise
     finally:
         db.close()
@@ -145,7 +145,7 @@ def list_pprs():
         pprs = db.query(PPR).all()
 
         if pprs:
-            print("\n📋 PPRs in Database:")
+            print("\n[PPRs in Database]")
             print("-" * 80)
             print(f"{'Nome':<35} {'Gestor':<25} {'Categoria':<12} Taxa")
             print("-" * 80)
@@ -155,7 +155,7 @@ def list_pprs():
 
             print("-" * 80)
         else:
-            print("\n⚠️  No PPRs found in database")
+            print("\n[WARNING] No PPRs found in database")
 
     finally:
         db.close()

@@ -31,7 +31,7 @@ async def main():
         populate_pprs()
         list_pprs()
     except Exception as e:
-        print(f"❌ Error populating PPRs: {e}")
+        print(f"[ERROR] Error populating PPRs: {e}")
         return
 
     # Step 2: Populate Bitcoin data
@@ -47,40 +47,40 @@ async def main():
 
     if os.path.exists(csv_path):
         try:
-            print("📂 Loading data from CSV...")
+            print("[CSV] Loading data from CSV...")
             load_csv_data(csv_path)
         except Exception as e:
-            print(f"⚠️  Warning: Error loading CSV: {e}")
+            print(f"[WARNING] Error loading CSV: {e}")
     else:
-        print(f"⚠️  CSV file not found at {csv_path}")
+        print(f"[WARNING] CSV file not found at {csv_path}")
 
     # Fetch from CoinGecko API
     try:
-        print("\n🌐 Fetching data from CoinGecko API...")
+        print("\n[API] Fetching data from CoinGecko API...")
         print("   (This may take 1-2 minutes...)")
         await fetch_coingecko_data(1825)  # 5 years
     except Exception as e:
-        print(f"❌ Error fetching from CoinGecko: {e}")
+        print(f"[ERROR] Error fetching from CoinGecko: {e}")
         print("   Continuing without API data...")
 
     # Step 3: Populate PPR historical data
     print_header("STEP 3: Generate PPR Historical Data (Sample)")
 
     try:
-        print("📈 Generating 5 years of sample historical data for PPRs...")
+        print("[DATA] Generating 5 years of sample historical data for PPRs...")
         print("   (This may take a minute...)")
 
         from populate_ppr_historical import populate_ppr_historical_data
         populate_ppr_historical_data(years=5)
     except Exception as e:
-        print(f"⚠️  Warning: Error generating PPR data: {e}")
+        print(f"[WARNING] Error generating PPR data: {e}")
 
     # Step 4: Show final statistics
     print_header("STEP 4: Database Statistics")
     check_database()
 
     # Final message
-    print_header("✅ DATABASE SETUP COMPLETE!")
+    print_header("[SUCCESS] DATABASE SETUP COMPLETE!")
     print("""
 Next steps:
 1. Start the API server:

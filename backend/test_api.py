@@ -193,6 +193,104 @@ def run_tests():
                f"Found {record_count} records")
     results["passed" if passed else "failed"] += 1
 
+    # Test Portfolio Endpoints (Phase 3)
+    print_header("4. Portfolio Endpoints (Phase 3)")
+
+    # Test 11: Get portfolio metrics documentation
+    result = test_endpoint("GET", "/api/v1/portfolio/metrics")
+    passed = result.get("success", False)
+    metrics_count = len(result.get("data", {})) if passed else 0
+    print_test("GET /api/v1/portfolio/metrics", passed, f"Found {metrics_count} metrics documented")
+    results["passed" if passed else "failed"] += 1
+
+    # Test 12: Calculate 100% PPR portfolio
+    if first_ppr_id:
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=365 * 2)  # 2 years
+
+        portfolio_request = {
+            "ppr_allocations": [
+                {
+                    "ppr_id": first_ppr_id,
+                    "allocation_percentage": 100
+                }
+            ],
+            "bitcoin_percentage": 0,
+            "initial_investment": 10000,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "rebalancing_frequency": "none"
+        }
+
+        result = test_endpoint("POST", "/api/v1/portfolio/calculate", params=portfolio_request)
+        passed = result.get("success", False)
+        if passed:
+            metrics = result.get("data", {}).get("metrics", {})
+            total_return = metrics.get("total_return_percentage", "N/A")
+            cagr = metrics.get("cagr", "N/A")
+            volatility = metrics.get("volatility", "N/A")
+            print_test("POST /api/v1/portfolio/calculate (100% PPR)", passed,
+                      f"Return: {total_return}%, CAGR: {cagr}%, Volatility: {volatility}%")
+        else:
+            print_test("POST /api/v1/portfolio/calculate (100% PPR)", passed,
+                      f"Error: {result.get('error', 'Unknown error')}")
+        results["passed" if passed else "failed"] += 1
+
+        # Test 13: Calculate hybrid portfolio (70% PPR + 30% Bitcoin)
+        portfolio_request["ppr_allocations"][0]["allocation_percentage"] = 70
+        portfolio_request["bitcoin_percentage"] = 30
+        portfolio_request["rebalancing_frequency"] = "quarterly"
+
+        result = test_endpoint("POST", "/api/v1/portfolio/calculate", params=portfolio_request)
+        passed = result.get("success", False)
+        if passed:
+            metrics = result.get("data", {}).get("metrics", {})
+            total_return = metrics.get("total_return_percentage", "N/A")
+            sharpe = metrics.get("sharpe_ratio", "N/A")
+            max_dd = metrics.get("max_drawdown", "N/A")
+            print_test("POST /api/v1/portfolio/calculate (70% PPR + 30% BTC)", passed,
+                      f"Return: {total_return}%, Sharpe: {sharpe}, Max DD: {max_dd}%")
+        else:
+            print_test("POST /api/v1/portfolio/calculate (70% PPR + 30% BTC)", passed,
+                      f"Error: {result.get('error', 'Unknown error')}")
+        results["passed" if passed else "failed"] += 1
+
+        # Test 14: Compare multiple portfolios
+        comparison_request = {
+            "portfolios": [
+                {
+                    "ppr_allocations": [{"ppr_id": first_ppr_id, "allocation_percentage": 100}],
+                    "bitcoin_percentage": 0,
+                    "initial_investment": 10000,
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "rebalancing_frequency": "quarterly"
+                },
+                {
+                    "ppr_allocations": [{"ppr_id": first_ppr_id, "allocation_percentage": 70}],
+                    "bitcoin_percentage": 30,
+                    "initial_investment": 10000,
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "rebalancing_frequency": "quarterly"
+                }
+            ],
+            "portfolio_names": ["100% PPR", "70% PPR + 30% BTC"]
+        }
+
+        result = test_endpoint("POST", "/api/v1/portfolio/compare", params=comparison_request)
+        passed = result.get("success", False)
+        if passed:
+            recommended = result.get("data", {}).get("comparison_summary", {}).get("recommended_portfolio", {})
+            rec_name = recommended.get("name", "N/A")
+            rec_reason = recommended.get("reason", "N/A")
+            print_test("POST /api/v1/portfolio/compare", passed,
+                      f"Recommended: {rec_name} ({rec_reason})")
+        else:
+            print_test("POST /api/v1/portfolio/compare", passed,
+                      f"Error: {result.get('error', 'Unknown error')}")
+        results["passed" if passed else "failed"] += 1
+
     # Summary
     print_header("TEST SUMMARY")
     total = results["passed"] + results["failed"]
@@ -213,7 +311,7 @@ def run_tests():
 
 def test_data_integrity():
     """Test data integrity and relationships"""
-    print_header("4. Data Integrity Tests")
+    print_header("5. Data Integrity Tests")
 
     # Test PPR-Historical relationship
     result = test_endpoint("GET", "/api/v1/pprs")
