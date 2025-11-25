@@ -1,11 +1,12 @@
 """
 PPR (Plano Poupança Reforma) database models
 """
-from sqlalchemy import Column, String, DECIMAL, TIMESTAMP, ForeignKey, UUID, Date, Index
+from sqlalchemy import Column, String, DECIMAL, TIMESTAMP, ForeignKey, Date, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 from database import Base
+from utils.db_types import GUID
 
 
 class PPR(Base):
@@ -16,7 +17,7 @@ class PPR(Base):
     """
     __tablename__ = "pprs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     nome = Column(String(200), nullable=False, index=True)
     gestor = Column(String(100), nullable=False)
     isin = Column(String(12), unique=True, nullable=True, index=True)
@@ -43,8 +44,8 @@ class PPRHistoricalData(Base):
         Index('idx_ppr_historical_data', 'ppr_id', 'data', postgresql_using='btree'),
     )
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    ppr_id = Column(UUID(as_uuid=True), ForeignKey('pprs.id'), nullable=False)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    ppr_id = Column(GUID(), ForeignKey('pprs.id'), nullable=False)
     data = Column(Date, nullable=False)
     valor_quota = Column(DECIMAL(10, 4), nullable=False)
     rentabilidade_acumulada = Column(DECIMAL(10, 4), nullable=True)  # % desde início
