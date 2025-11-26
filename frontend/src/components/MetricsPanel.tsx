@@ -51,66 +51,60 @@ const MetricsPanel: React.FC<MetricsPanelProps> = ({ metrics, title = 'Métricas
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <MetricCard
-          label="Valor Total"
-          value={metrics.total_value}
+          label="Valor Final"
+          value={Number(metrics.final_value)}
           isCurrency
           tooltip="Valor atual da carteira"
         />
         <MetricCard
-          label="Total Investido"
-          value={metrics.total_invested}
-          isCurrency
-          tooltip="Total de capital investido (inicial + contribuições)"
-        />
-        <MetricCard
           label="Retorno Total"
-          value={metrics.total_return}
+          value={Number(metrics.total_return)}
           isCurrency
           tooltip="Ganho ou perda absoluta"
         />
         <MetricCard
           label="Retorno %"
-          value={metrics.return_percentage}
+          value={Number(metrics.total_return_percentage)}
           isPercentage
           tooltip="Retorno em percentagem do capital investido"
         />
         <MetricCard
           label="CAGR"
-          value={metrics.cagr}
+          value={Number(metrics.cagr)}
           isPercentage
           tooltip="Taxa de crescimento anual composta"
         />
         <MetricCard
           label="Volatilidade"
-          value={metrics.volatility}
+          value={Number(metrics.volatility)}
           isPercentage
           tooltip="Volatilidade anualizada (desvio padrão dos retornos)"
         />
         <MetricCard
           label="Sharpe Ratio"
-          value={metrics.sharpe_ratio}
+          value={Number(metrics.sharpe_ratio)}
           tooltip="Retorno ajustado ao risco (valores > 1 são bons)"
         />
         <MetricCard
           label="Sortino Ratio"
-          value={metrics.sortino_ratio}
+          value={Number(metrics.sortino_ratio)}
           tooltip="Retorno ajustado ao risco negativo (valores > 1 são bons)"
         />
         <MetricCard
           label="Drawdown Máximo"
-          value={metrics.max_drawdown}
+          value={Number(metrics.max_drawdown)}
           isPercentage
           tooltip="Maior queda de pico a vale"
         />
         <MetricCard
           label="Melhor Mês"
-          value={metrics.best_month}
+          value={Number(metrics.best_month)}
           isPercentage
           tooltip="Melhor retorno mensal"
         />
         <MetricCard
           label="Pior Mês"
-          value={metrics.worst_month}
+          value={Number(metrics.worst_month)}
           isPercentage
           tooltip="Pior retorno mensal"
         />

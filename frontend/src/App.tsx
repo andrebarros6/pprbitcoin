@@ -5,10 +5,10 @@ import PPRSelector from './components/PPRSelector';
 import BitcoinSlider from './components/BitcoinSlider';
 import PeriodSelector from './components/PeriodSelector';
 import InvestmentInputs from './components/InvestmentInputs';
-import PortfolioChart from './components/PortfolioChart';
-import MetricsPanel from './components/MetricsPanel';
-import { calculatePortfolio } from './api/client';
-import type { PortfolioResponse } from './types/api';
+import ComparisonChart from './components/ComparisonChart';
+import MetricsComparisonTable from './components/MetricsComparisonTable';
+import { comparePortfolios } from './api/client';
+import type { CompareResponse } from './types/api';
 
 function App() {
   // Portfolio configuration state
@@ -23,7 +23,7 @@ function App() {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   // Results state
-  const [portfolioData, setPortfolioData] = useState<PortfolioResponse | null>(null);
+  const [comparisonData, setComparisonData] = useState<CompareResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,17 +37,42 @@ function App() {
       setLoading(true);
       setError(null);
 
-      const result = await calculatePortfolio({
-        ppr_ids: selectedPPRIds,
-        bitcoin_allocation: bitcoinAllocation / 100,
+      // Portfolio 1: 100% PPR (no Bitcoin)
+      const portfolio100PPR = {
+        ppr_allocations: selectedPPRIds.map(pprId => ({
+          ppr_id: pprId,
+          allocation_percentage: 100 / selectedPPRIds.length,
+        })),
+        bitcoin_percentage: 0,
         initial_investment: initialInvestment,
-        monthly_contribution: monthlyContribution,
         start_date: startDate,
         end_date: endDate,
         rebalancing_frequency: rebalancingFrequency,
+      };
+
+      // Portfolio 2: PPR + Bitcoin
+      const pprPercentage = 100 - bitcoinAllocation;
+      const allocationPerPPR = pprPercentage / selectedPPRIds.length;
+
+      const portfolioPPRBitcoin = {
+        ppr_allocations: selectedPPRIds.map(pprId => ({
+          ppr_id: pprId,
+          allocation_percentage: allocationPerPPR,
+        })),
+        bitcoin_percentage: bitcoinAllocation,
+        initial_investment: initialInvestment,
+        start_date: startDate,
+        end_date: endDate,
+        rebalancing_frequency: rebalancingFrequency,
+      };
+
+      // Compare both portfolios
+      const result = await comparePortfolios({
+        portfolios: [portfolio100PPR, portfolioPPRBitcoin],
+        portfolio_names: ['100% PPR', `${100 - bitcoinAllocation}% PPR + ${bitcoinAllocation}% BTC`],
       });
 
-      setPortfolioData(result);
+      setComparisonData(result);
     } catch (err) {
       setError(
         'Erro ao calcular a carteira. Verifique se o backend está a correr e se os parâmetros estão corretos.'
@@ -123,10 +148,52 @@ function App() {
 
           {/* Right Column - Results */}
           <div className="lg:col-span-2 space-y-6">
-            {portfolioData ? (
+            {comparisonData ? (
               <>
-                <PortfolioChart data={portfolioData.time_series} />
-                <MetricsPanel metrics={portfolioData.metrics} />
+                {/* Combined Chart */}
+                <ComparisonChart
+                  data100PPR={comparisonData.portfolios[0].historical_data}
+                  dataPPRBTC={comparisonData.portfolios[1].historical_data}
+                  bitcoinAllocation={bitcoinAllocation}
+                />
+
+                {/* Metrics Comparison Table */}
+                <MetricsComparisonTable
+                  metrics100PPR={comparisonData.portfolios[0].metrics}
+                  metricsPPRBTC={comparisonData.portfolios[1].metrics}
+                  bitcoinAllocation={bitcoinAllocation}
+                />
+
+                {/* Comparison Summary */}
+                <div className="card bg-gradient-to-br from-bitcoin-50 to-orange-50 border-2 border-bitcoin-300">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">📊 Resumo da Comparação</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-sm text-gray-600 mb-1">Melhor Retorno Total</p>
+                      <p className="text-lg font-bold text-bitcoin-600">
+                        {comparisonData.comparison_summary.best_return}
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-sm text-gray-600 mb-1">Melhor Sharpe Ratio</p>
+                      <p className="text-lg font-bold text-bitcoin-600">
+                        {comparisonData.comparison_summary.best_sharpe}
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-sm text-gray-600 mb-1">Menor Volatilidade</p>
+                      <p className="text-lg font-bold text-green-600">
+                        {comparisonData.comparison_summary.lowest_volatility}
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-sm text-gray-600 mb-1">Menor Drawdown</p>
+                      <p className="text-lg font-bold text-green-600">
+                        {comparisonData.comparison_summary.lowest_drawdown}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </>
             ) : (
               <div className="card text-center py-12">
@@ -136,7 +203,7 @@ function App() {
                 </h3>
                 <p className="text-gray-600">
                   Selecione os PPRs, ajuste a alocação Bitcoin e clique em "Calcular Carteira"
-                  para ver os resultados.
+                  para ver a comparação entre 100% PPR vs PPR+Bitcoin.
                 </p>
               </div>
             )}

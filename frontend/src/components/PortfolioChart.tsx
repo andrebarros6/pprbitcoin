@@ -10,14 +10,15 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { format, parseISO } from 'date-fns';
-import type { PortfolioTimeSeries } from '../types/api';
+import type { HistoricalDataPoint } from '../types/api';
 
 interface PortfolioChartProps {
-  data: PortfolioTimeSeries[];
+  data: HistoricalDataPoint[];
   showBreakdown?: boolean;
+  title?: string;
 }
 
-const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, showBreakdown = false }) => {
+const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, showBreakdown = false, title = 'Evolução da Carteira' }) => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-PT', {
       style: 'currency',
@@ -36,16 +37,15 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, showBreakdown = f
   };
 
   const chartData = data.map((item) => ({
-    date: item.date,
-    value: item.value,
-    invested: item.invested,
-    ppr: item.ppr_value,
-    bitcoin: item.bitcoin_value,
+    date: item.data,  // Backend sends 'data' not 'date'
+    value: Number(item.portfolio_value),  // Convert Decimal string to number
+    ppr: Number(item.ppr_value),  // Convert Decimal string to number
+    bitcoin: Number(item.bitcoin_value),  // Convert Decimal string to number
   }));
 
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold mb-4">Evolução da Carteira</h3>
+      <h3 className="text-lg font-semibold mb-4">{title}</h3>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -76,15 +76,6 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, showBreakdown = f
             name="Valor Total"
             stroke="#f97316"
             strokeWidth={2}
-            dot={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="invested"
-            name="Investido"
-            stroke="#6b7280"
-            strokeWidth={2}
-            strokeDasharray="5 5"
             dot={false}
           />
           {showBreakdown && (

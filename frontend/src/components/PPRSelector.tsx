@@ -82,7 +82,7 @@ const PPRSelector: React.FC<PPRSelectorProps> = ({ selectedPPRIds, onChange }) =
             <div className="ml-3 flex-1">
               <div className="font-medium text-gray-900">{ppr.nome}</div>
               <div className="text-sm text-gray-500">
-                {ppr.gestor} • TER: {ppr.taxa_gestao?.toFixed(2) ?? 'N/A'}%
+                {ppr.gestor} • TER: {ppr.taxa_gestao ? Number(ppr.taxa_gestao).toFixed(2) : 'N/A'}%
               </div>
             </div>
           </label>
