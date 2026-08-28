@@ -25,13 +25,20 @@ class GUID(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
-        elif dialect.name == 'postgresql':
-            return str(value)
-        else:
-            if not isinstance(value, uuid.UUID):
-                return str(uuid.UUID(value))
-            else:
-                return str(value)
+
+        # Normalise to a real UUID first so that a string input and a UUID
+        # input cannot take different paths.
+        if not isinstance(value, uuid.UUID):
+            value = uuid.UUID(str(value))
+
+        if dialect.name == 'postgresql':
+            # psycopg2 adapts uuid.UUID natively. Passing a str here instead
+            # makes SQLAlchemy's insertmanyvalues unable to match the returned
+            # sentinel values against the parameter sets, which breaks every
+            # bulk insert on Postgres with "Can't match sentinel values".
+            return value
+
+        return str(value)
 
     def process_result_value(self, value, dialect):
         if value is None:

@@ -150,3 +150,64 @@ class TestHistoricalAlignment:
         combined = self._calculator()._align_historical_data(ppr, btc)
         tail = combined["ppr_x"].tail(5).tolist()
         assert len(set(tail)) > 1
+class TestGUIDBindParam:
+    """
+    Regression tests for the GUID type's bind parameter handling.
+
+    process_bind_param previously returned a str for Postgres while
+    process_result_value returned a uuid.UUID. SQLAlchemy's insertmanyvalues
+    could not match the returned sentinel values against the parameter sets,
+    so every bulk insert on Postgres failed with "Can't match sentinel
+    values". SQLite was unaffected, which is why the API tests missed it.
+    """
+
+    def _dialect(self, name):
+        class _D:
+            pass
+        d = _D()
+        d.name = name
+        return d
+
+    def test_postgres_bind_returns_uuid_object(self):
+        import uuid as uuid_mod
+        from utils.db_types import GUID
+
+        value = uuid_mod.uuid4()
+        bound = GUID().process_bind_param(value, self._dialect("postgresql"))
+        assert isinstance(bound, uuid_mod.UUID)
+        assert bound == value
+
+    def test_postgres_bind_normalises_string_input(self):
+        import uuid as uuid_mod
+        from utils.db_types import GUID
+
+        value = uuid_mod.uuid4()
+        bound = GUID().process_bind_param(str(value), self._dialect("postgresql"))
+        assert isinstance(bound, uuid_mod.UUID)
+        assert bound == value
+
+    def test_sqlite_bind_returns_string(self):
+        import uuid as uuid_mod
+        from utils.db_types import GUID
+
+        value = uuid_mod.uuid4()
+        bound = GUID().process_bind_param(value, self._dialect("sqlite"))
+        assert isinstance(bound, str)
+        assert bound == str(value)
+
+    def test_bind_and_result_round_trip(self):
+        """What goes in must come back out as the same UUID on both backends."""
+        import uuid as uuid_mod
+        from utils.db_types import GUID
+
+        guid = GUID()
+        value = uuid_mod.uuid4()
+        for name in ("postgresql", "sqlite"):
+            dialect = self._dialect(name)
+            bound = guid.process_bind_param(value, dialect)
+            assert guid.process_result_value(bound, dialect) == value
+
+    def test_none_passes_through(self):
+        from utils.db_types import GUID
+
+        assert GUID().process_bind_param(None, self._dialect("postgresql")) is None
