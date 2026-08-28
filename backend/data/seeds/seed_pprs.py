@@ -1,153 +1,131 @@
 """
-Seed script to populate the database with Portuguese PPR funds
+Seed script to populate the database with real Portuguese PPR funds.
+
+Source: Optimize Investment Partners' published daily NAV series
+(see services/ppr_history.py).
+
+There is deliberately NO synthetic fallback. An earlier version invented both
+the fund list (plausible-looking names with fabricated ISINs) and their
+performance (a random walk around a hardcoded average return). Publishing
+invented performance against real, named, regulated funds is not acceptable,
+so this script now seeds only funds whose real daily NAV it can actually
+retrieve, and exits non-zero otherwise.
+
+taxa_gestao is intentionally left NULL: the published NAV is already net of
+management fees, and the fee is not machine-readable from the source. Storing
+a guessed fee would misstate a real product's costs.
 """
+import argparse
 import sys
 from pathlib import Path
 
 # Add backend directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from database import SessionLocal, engine, Base
-from models.ppr import PPR, PPRHistoricalData
-from datetime import datetime, timedelta
-import random
+from database import SessionLocal, engine, Base  # noqa: E402
+from models.ppr import PPR, PPRHistoricalData  # noqa: E402
+from services.ppr_history import fetch_all_funds, PPRDataError  # noqa: E402
 
-def seed_pprs():
-    """Seed database with 10 major Portuguese PPR funds"""
+BATCH_SIZE = 500
 
-    # Create tables
+
+def seed_pprs(refresh: bool = False) -> int:
+    """
+    Seed PPR funds and their real daily NAV history.
+
+    Args:
+        refresh: If True, delete existing PPRs and re-seed. Required to
+                 replace the synthetic funds seeded by the old version.
+
+    Returns:
+        Number of NAV records written.
+    """
     Base.metadata.create_all(bind=engine)
-
     db = SessionLocal()
 
-    # Check if PPRs already exist
-    existing_count = db.query(PPR).count()
-    if existing_count > 0:
-        print(f"Database already has {existing_count} PPRs. Skipping seed.")
-        db.close()
-        return
-
-    # 10 major Portuguese PPR funds
-    # Using Portuguese column names: nome, gestor, taxa_gestao
-    pprs_data = [
-        {
-            "nome": "GNB PPR Reforma Acções",
-            "gestor": "GNB Gestão de Ativos",
-            "isin": "PTGNBRE0007",
-            "taxa_gestao": 1.95,  # Already as percentage (1.95%)
-            "avg_annual_return": 0.065
-        },
-        {
-            "nome": "Optimize PPR Reforma",
-            "gestor": "Optimize Investment Partners",
-            "isin": "PTOPTPPR001",
-            "taxa_gestao": 1.80,
-            "avg_annual_return": 0.058
-        },
-        {
-            "nome": "Santander PPR Dinâmico",
-            "gestor": "Santander Asset Management",
-            "isin": "PTSANPPR003",
-            "taxa_gestao": 2.10,
-            "avg_annual_return": 0.055
-        },
-        {
-            "nome": "BPI PPR Reforma Activa",
-            "gestor": "BPI Gestão de Activos",
-            "isin": "PTBPIPPR002",
-            "taxa_gestao": 2.05,
-            "avg_annual_return": 0.052
-        },
-        {
-            "nome": "Montepio PPR Reforma",
-            "gestor": "Montepio Gestão de Activos",
-            "isin": "PTMONTPPR01",
-            "taxa_gestao": 2.20,
-            "avg_annual_return": 0.048
-        },
-        {
-            "nome": "CGD PPR Reforma Valorização",
-            "gestor": "Caixa Gestão de Ativos",
-            "isin": "PTCGDPPR001",
-            "taxa_gestao": 2.15,
-            "avg_annual_return": 0.050
-        },
-        {
-            "nome": "NB PPR Reforma Rendimento",
-            "gestor": "Novo Banco Gestão de Ativos",
-            "isin": "PTNBPPPR001",
-            "taxa_gestao": 2.00,
-            "avg_annual_return": 0.047
-        },
-        {
-            "nome": "Bankinter PPR Reforma Prudente",
-            "gestor": "Bankinter Gestão de Ativos",
-            "isin": "PTBANKPPR01",
-            "taxa_gestao": 1.85,
-            "avg_annual_return": 0.045
-        },
-        {
-            "nome": "ActivoBank PPR Global",
-            "gestor": "ActivoBank Asset Management",
-            "isin": "PTACTPPR001",
-            "taxa_gestao": 1.75,
-            "avg_annual_return": 0.062
-        },
-        {
-            "nome": "BiG PPR Reforma Crescimento",
-            "gestor": "BiG Gestão de Activos",
-            "isin": "PTBIGPPR001",
-            "taxa_gestao": 1.90,
-            "avg_annual_return": 0.054
-        }
-    ]
-
-    print("Seeding PPR funds...")
-
-    for ppr_data in pprs_data:
-        # Extract avg_return before creating PPR
-        avg_return = ppr_data.pop("avg_annual_return")
-
-        # Create PPR (Portuguese column names)
-        ppr = PPR(**ppr_data)
-        db.add(ppr)
-        db.flush()  # Get the ID
-
-        # Generate 5 years of historical data (monthly)
-        print(f"  Creating historical data for {ppr.nome}...")
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=5*365)
-
-        current_date = start_date
-        base_value = 100.0
-        current_value = base_value
-
-        while current_date <= end_date:
-            # Simulate monthly returns with some randomness
-            monthly_return = (avg_return / 12) + random.uniform(-0.02, 0.02)
-            current_value *= (1 + monthly_return)
-
-            # Use Portuguese column names: data, valor_quota, rentabilidade_acumulada
-            historical = PPRHistoricalData(
-                ppr_id=ppr.id,
-                data=current_date.date(),
-                valor_quota=round(current_value, 4),
-                rentabilidade_acumulada=round((current_value - base_value) / base_value * 100, 4)
+    try:
+        existing_count = db.query(PPR).count()
+        if existing_count > 0 and not refresh:
+            print(
+                f"Database already has {existing_count} PPRs. Skipping seed. "
+                f"Use --refresh to replace them."
             )
-            db.add(historical)
+            return 0
 
-            # Move to next month
-            if current_date.month == 12:
-                current_date = current_date.replace(year=current_date.year + 1, month=1)
-            else:
-                current_date = current_date.replace(month=current_date.month + 1)
+        # Fetch and validate everything BEFORE touching the database.
+        print("Fetching real PPR daily NAV history...")
+        funds = fetch_all_funds()
 
-        print(f"  [OK] {ppr.nome} - {ppr.isin}")
+        if refresh and existing_count > 0:
+            print(f"  Removing {existing_count} existing PPRs and their history...")
+            db.query(PPRHistoricalData).delete()
+            db.query(PPR).delete()
+            db.commit()
 
-    db.commit()
-    print(f"\n[SUCCESS] Seeded {len(pprs_data)} PPR funds with historical data!")
-    db.close()
+        total_written = 0
+        for fund in funds:
+            ppr = PPR(
+                nome=fund["nome"],
+                gestor=fund["gestor"],
+                isin=fund["isin"],
+                categoria=fund["categoria"],
+                taxa_gestao=None,  # see module docstring
+            )
+            db.add(ppr)
+            db.commit()
+            db.refresh(ppr)
+
+            nav = fund["nav"]
+            days = sorted(nav)
+            baseline = nav[days[0]]
+
+            records = []
+            for day in days:
+                value = nav[day]
+                records.append(
+                    PPRHistoricalData(
+                        ppr_id=ppr.id,
+                        data=day,
+                        valor_quota=value,
+                        # Cumulative return since the first observation, in %.
+                        rentabilidade_acumulada=(value / baseline - 1) * 100,
+                    )
+                )
+                if len(records) >= BATCH_SIZE:
+                    db.bulk_save_objects(records)
+                    db.commit()
+                    total_written += len(records)
+                    records = []
+
+            if records:
+                db.bulk_save_objects(records)
+                db.commit()
+                total_written += len(records)
+
+            print(f"  Seeded {fund['nome']} ({len(days)} NAV points)")
+
+        print(
+            f"\n[SUCCESS] Seeded {len(funds)} real PPR funds "
+            f"with {total_written} NAV records!"
+        )
+        return total_written
+
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
-    seed_pprs()
+    parser = argparse.ArgumentParser(description="Seed real PPR funds and NAV history")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Delete existing PPRs and re-seed from source",
+    )
+    args = parser.parse_args()
+
+    try:
+        seed_pprs(refresh=args.refresh)
+    except PPRDataError as exc:
+        print(f"\n[FAILED] Could not obtain real PPR data: {exc}", file=sys.stderr)
+        print("Nothing was written to the database.", file=sys.stderr)
+        sys.exit(1)
