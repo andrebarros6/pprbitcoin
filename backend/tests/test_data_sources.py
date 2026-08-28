@@ -103,3 +103,50 @@ class TestPPRValidation:
             nav[day] = Decimal("10") + Decimal(i) / 1000
             day -= dt.timedelta(days=3 if i % 5 == 0 else 1)
         validate_nav("Test Fund", nav)  # must not raise
+class TestHistoricalAlignment:
+    """
+    Regression tests for _align_historical_data.
+
+    PPR funds quote on business days while Bitcoin trades every day, so the
+    two series have different indexes. pandas.concat unions them in
+    concatenation order rather than date order; the resulting unsorted index
+    made ffill carry values backwards in time and produced a flat tail on the
+    chart plus meaningless daily returns.
+    """
+
+    def _calculator(self):
+        from services.portfolio_calculator import PortfolioCalculator
+        return PortfolioCalculator(db=None)
+
+    def _frames(self):
+        import pandas as pd
+
+        # PPR: business days only.
+        ppr_index = pd.bdate_range("2024-01-01", "2024-03-29")
+        ppr = pd.DataFrame(
+            {"ppr_x": range(len(ppr_index))}, index=ppr_index
+        )
+        # Bitcoin: every calendar day, extending past the last PPR quote.
+        btc_index = pd.date_range("2024-01-01", "2024-04-15")
+        btc = pd.DataFrame(
+            {"bitcoin_price": range(len(btc_index))}, index=btc_index
+        )
+        return ppr, btc
+
+    def test_aligned_index_is_sorted(self):
+        ppr, btc = self._frames()
+        combined = self._calculator()._align_historical_data(ppr, btc)
+        assert combined.index.is_monotonic_increasing
+
+    def test_no_dates_after_last_ppr_quote(self):
+        """Trailing Bitcoin-only days would repeat the last PPR quote."""
+        ppr, btc = self._frames()
+        combined = self._calculator()._align_historical_data(ppr, btc)
+        assert combined.index.max() == ppr.index.max()
+
+    def test_no_repeated_flat_tail(self):
+        """The last values must not be a run of identical numbers."""
+        ppr, btc = self._frames()
+        combined = self._calculator()._align_historical_data(ppr, btc)
+        tail = combined["ppr_x"].tail(5).tolist()
+        assert len(set(tail)) > 1
