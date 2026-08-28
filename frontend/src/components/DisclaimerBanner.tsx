@@ -27,6 +27,17 @@ const DisclaimerBanner: React.FC = () => {
             criptomoedas estão sujeitos a perdas. Consulte sempre um consultor financeiro antes de
             tomar decisões de investimento.
           </p>
+          <p className="mt-2 text-sm text-yellow-700">
+            <strong>Dados:</strong> valores diários reais das unidades de participação publicados
+            pela Optimize Investment Partners, e cotações BTC/EUR da Bitstamp. As rendibilidades
+            implícitas são verificadas face aos valores publicados pela APFIPP.
+          </p>
+          <p className="mt-2 text-sm text-yellow-700">
+            <strong>Cobertura:</strong> esta ferramenta compara apenas 4 fundos PPR de uma
+            sociedade gestora. Não representa o mercado português de PPR no seu conjunto — a
+            APFIPP lista 88 fundos PPR. A rendibilidade passada não é indicativa de resultados
+            futuros.
+          </p>
         </div>
       </div>
     </div>

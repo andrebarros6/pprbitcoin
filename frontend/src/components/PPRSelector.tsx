@@ -82,7 +82,13 @@ const PPRSelector: React.FC<PPRSelectorProps> = ({ selectedPPRIds, onChange }) =
             <div className="ml-3 flex-1">
               <div className="font-medium text-gray-900">{ppr.nome}</div>
               <div className="text-sm text-gray-500">
-                {ppr.gestor} • TER: {ppr.taxa_gestao ? Number(ppr.taxa_gestao).toFixed(2) : 'N/A'}%
+                {/* The published NAV is already net of fees and the fee is not
+                    available from the data source, so the TER is omitted
+                    rather than shown as "N/A%". */}
+                {ppr.gestor}
+                {ppr.taxa_gestao
+                  ? ` • TER: ${Number(ppr.taxa_gestao).toFixed(2)}%`
+                  : ''}
               </div>
             </div>
           </label>
