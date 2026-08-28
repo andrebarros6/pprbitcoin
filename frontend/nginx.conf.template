@@ -1,0 +1,23 @@
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Single-page app: unknown paths must fall back to index.html so that
+    # /privacidade and /termos resolve on a hard refresh instead of 404ing.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Hashed build assets are immutable; index.html must never be cached or
+    # users keep loading a stale bundle after a deploy.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+}
