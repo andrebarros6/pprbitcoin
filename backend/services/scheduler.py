@@ -9,6 +9,7 @@ import logging
 
 from services.bitcoin_updater import BitcoinUpdater
 from services.ppr_scraper import PPRScraperManager
+from services.data_refresh import refresh_bitcoin, refresh_pprs
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,10 +32,15 @@ class DataUpdateScheduler:
         """
         try:
             logger.info("🔄 Starting Bitcoin price update...")
-            result = await self.bitcoin_updater.update_latest()
+            # Runs in a thread: refresh_bitcoin is synchronous (httpx sync
+            # client) and would otherwise block the scheduler's event loop.
+            result = await asyncio.to_thread(refresh_bitcoin)
 
             if result['success']:
-                logger.info(f"✅ Bitcoin updated: {result['price']} EUR")
+                logger.info(
+                    f"✅ Bitcoin updated: {result['inserted']} new, "
+                    f"{result['updated']} revised"
+                )
             else:
                 logger.error(f"❌ Bitcoin update failed: {result['error']}")
 
@@ -47,13 +53,15 @@ class DataUpdateScheduler:
         """
         try:
             logger.info("🔄 Starting PPR quotas update...")
-            result = await self.ppr_scraper_manager.scrape_all()
+            result = await asyncio.to_thread(refresh_pprs)
 
-            logger.info(f"✅ PPR update complete: {result['success']} success, {result['failed']} failed")
-
-            if result['errors']:
-                for error in result['errors']:
-                    logger.error(f"   ✗ {error['ppr']}: {error['error']}")
+            if result['success']:
+                logger.info(
+                    f"✅ PPR update complete: {result['inserted']} new, "
+                    f"{result['updated']} revised"
+                )
+            else:
+                logger.error(f"❌ PPR update failed: {result['error']}")
 
         except Exception as e:
             logger.error(f"❌ Error updating PPRs: {e}")
