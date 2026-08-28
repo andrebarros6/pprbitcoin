@@ -20,7 +20,7 @@ import models  # This imports all models
 config = context.config
 
 # Override sqlalchemy.url with our config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.sqlalchemy_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -49,7 +49,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = settings.DATABASE_URL
+    url = settings.sqlalchemy_url
     context.configure(
         url=url,
         target_metadata=target_metadata,

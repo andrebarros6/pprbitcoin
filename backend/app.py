@@ -1,13 +1,20 @@
 """
 PPR Bitcoin API - Main application
 """
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 from config import settings
 from database import init_db
 from api.routes import ppr, bitcoin, portfolio
+from utils.rate_limit import limiter
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -19,8 +26,23 @@ async def lifespan(app: FastAPI):
     print("[START] Starting PPR Bitcoin API...")
     init_db()
     print("[OK] Database initialized")
+
+    # The scheduler keeps Bitcoin and PPR data current. It is opt-in because
+    # running it in every web instance would duplicate the refresh; with more
+    # than one instance, run it as a separate worker instead.
+    scheduler = None
+    if settings.ENABLE_SCHEDULER:
+        from services.scheduler import DataUpdateScheduler
+
+        scheduler = DataUpdateScheduler()
+        scheduler.start()
+        print("[OK] Data refresh scheduler started")
+
     yield
+
     # Shutdown
+    if scheduler is not None:
+        scheduler.stop()
     print("[STOP] Shutting down PPR Bitcoin API...")
 
 
@@ -32,6 +54,10 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan
 )
+
+# Rate limiting (see utils/rate_limit.py)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(

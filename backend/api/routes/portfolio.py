@@ -1,7 +1,7 @@
 """
 Portfolio calculation routes
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from typing import Dict
 
@@ -17,13 +17,16 @@ from models.portfolio import (
     PPRNotFoundError,
 )
 from services.portfolio_calculator import PortfolioCalculator
+from utils.rate_limit import limiter, CALCULATION_RATE_LIMIT
 
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"])
 
 
 @router.post("/calculate", response_model=PortfolioCalculationResponse)
+@limiter.limit(CALCULATION_RATE_LIMIT)
 def calculate_portfolio(
-    request: PortfolioCalculationRequest,
+    request: Request,
+    payload: PortfolioCalculationRequest,
     db: Session = Depends(get_db),
 ):
     """
@@ -67,7 +70,7 @@ def calculate_portfolio(
     """
     try:
         calculator = PortfolioCalculator(db)
-        result = calculator.calculate_portfolio(request)
+        result = calculator.calculate_portfolio(payload)
         return result
 
     except PPRNotFoundError as e:
@@ -98,8 +101,10 @@ def calculate_portfolio(
 
 
 @router.post("/compare", response_model=PortfolioComparisonResponse)
+@limiter.limit(CALCULATION_RATE_LIMIT)
 def compare_portfolios(
-    request: PortfolioComparisonRequest,
+    request: Request,
+    payload: PortfolioComparisonRequest,
     db: Session = Depends(get_db),
 ):
     """
@@ -151,12 +156,12 @@ def compare_portfolios(
         results = []
 
         # Calculate each portfolio
-        for portfolio_request in request.portfolios:
+        for portfolio_request in payload.portfolios:
             result = calculator.calculate_portfolio(portfolio_request)
             results.append(result)
 
         # Build comparison summary
-        comparison_summary = _build_comparison_summary(results, request.portfolio_names)
+        comparison_summary = _build_comparison_summary(results, payload.portfolio_names)
 
         return PortfolioComparisonResponse(
             portfolios=results,

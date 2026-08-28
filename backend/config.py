@@ -15,7 +15,9 @@ class Settings(BaseSettings):
     API_VERSION: str = "v1"
     API_TITLE: str = "PPR Bitcoin API"
     API_DESCRIPTION: str = "API para análise de portfolios PPR + Bitcoin"
-    DEBUG: bool = True
+    # Defaults to False so a missing env var cannot accidentally expose
+    # stack traces or turn on SQLAlchemy statement logging in production.
+    DEBUG: bool = False
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173"
@@ -26,6 +28,10 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
+
+    # Run the data-refresh scheduler inside the API process. Keep False when
+    # running more than one instance, or the refresh runs once per instance.
+    ENABLE_SCHEDULER: bool = False
 
     # Sentry (Error Monitoring)
     SENTRY_DSN: str = ""
@@ -42,7 +48,25 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list"""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        return [
+            origin.strip()
+            for origin in self.CORS_ORIGINS.split(",")
+            if origin.strip()
+        ]
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        """
+        Normalise the database URL for SQLAlchemy.
+
+        Railway (and Heroku) expose Postgres as `postgres://`, a scheme
+        SQLAlchemy 2.x no longer recognises. Rewriting it here means the
+        platform-provided DATABASE_URL can be used verbatim.
+        """
+        url = self.DATABASE_URL
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
 
 
 # Singleton instance

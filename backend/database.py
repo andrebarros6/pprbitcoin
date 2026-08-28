@@ -6,13 +6,23 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from config import settings
 
+
+def _engine_kwargs() -> dict:
+    """
+    SQLite (used for local development and tests) rejects the pooling
+    arguments that Postgres needs, so they are only applied for Postgres.
+    """
+    if settings.sqlalchemy_url.startswith("sqlite"):
+        return {"connect_args": {"check_same_thread": False}}
+    return {"pool_size": 10, "max_overflow": 20}
+
+
 # Create database engine
 engine = create_engine(
-    settings.DATABASE_URL,
+    settings.sqlalchemy_url,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    echo=settings.DEBUG
+    echo=settings.DEBUG,
+    **_engine_kwargs(),
 )
 
 # Create session factory
