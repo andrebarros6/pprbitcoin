@@ -13,6 +13,7 @@ import datetime as dt
 import io
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -23,6 +24,13 @@ import pandas as pd  # noqa: E402
 from database import SessionLocal  # noqa: E402
 from models.bitcoin import BitcoinHistoricalData  # noqa: E402
 from models.ppr import PPR, PPRHistoricalData  # noqa: E402
+from services.cmvm_reference import (  # noqa: E402
+    CMVMDataError,
+    fetch_ppr_register,
+    reference_as_of,
+    returns_by_fund,
+    tec_by_fund,
+)
 
 APFIPP_URL = "https://www.apfipp.pt/pt/estatisticas/rendibilidades/oic-mobiliario/"
 # APFIPP's table is published with an as-of date in its first column header.
@@ -111,6 +119,58 @@ def annualised(series: dict, years: int, asof: dt.date) -> float:
     return ((series[last] / series[start]) ** (1 / years) - 1) * 100
 
 
+def _strip_accents(text: str) -> str:
+    """CMVM and our own names differ in accents (POUPANCA vs POUPANÇA)."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def _match_cmvm(nome: str, register: dict):
+    """
+    Find a fund in the CMVM register by name.
+
+    CMVM writes names in full and in upper case ("OPTIMIZE PPR/OICVM ATIVO -
+    FUNDO DE INVESTIMENTO ABERTO DE POUPANÇA REFORMA") while we store a short
+    form ("Optimize PPR Ativo"), so matching is on the distinguishing words
+    rather than the whole string.
+
+    Substring matching alone is not enough: every CMVM name ends in "FUNDO DE
+    INVESTIMENTO ABERTO DE POUPANÇA REFORMA", so "IMGA Poupança PPR" matches
+    the IMGA *Investimento* record too. Candidates are therefore scored and
+    an ambiguous match is rejected rather than guessed at -- silently
+    verifying one fund against another fund's returns is worse than not
+    verifying at all.
+    """
+    words = [_strip_accents(w).upper() for w in nome.split() if len(w) > 3]
+    if not words:
+        return None
+
+    candidates = []
+    for name, horizons in register.items():
+        flat = _strip_accents(name).upper()
+        if not all(w in flat for w in words):
+            continue
+        # Prefer the name whose leading portion (before the boilerplate
+        # suffix) is closest in length to what we searched for.
+        head = flat.split(" - FUNDO")[0].split(", FUNDO")[0]
+        candidates.append((abs(len(head) - len(" ".join(words))), name, horizons))
+
+    if not candidates:
+        return None
+
+    candidates.sort()
+    best = candidates[0]
+    # A tie on score between differently-named funds means we cannot tell
+    # them apart; refuse rather than pick arbitrarily.
+    ties = [c for c in candidates if c[0] == best[0]]
+    distinct = {_strip_accents(c[1]).upper().split(" - FUNDO")[0] for c in ties}
+    if len(distinct) > 1:
+        return None
+    return best[1], best[2]
+
+
 def main() -> int:
     db = SessionLocal()
     failures = []
@@ -184,6 +244,64 @@ def main() -> int:
                     failures.append(
                         f"{ppr.nome} {years}y: {implied:.2f} vs {published:.2f}"
                     )
+
+        # --- CMVM (regulator) ----------------------------------------
+        # A second independent check. CMVM publishes a 10-year horizon,
+        # which APFIPP does not, so this is the only source that verifies
+        # the deep end of a long NAV series.
+        print("\nPPR funds (NAV-implied vs CMVM register):")
+        try:
+            register = fetch_ppr_register()
+            cmvm_returns = returns_by_fund(register)
+            cmvm_tec = tec_by_fund(register)
+            cmvm_asof = reference_as_of()
+            print(f"  ({len(register)} funds in register, figures as of {cmvm_asof})")
+
+            for ppr in db.query(PPR).all():
+                rows = (
+                    db.query(PPRHistoricalData)
+                    .filter(PPRHistoricalData.ppr_id == ppr.id)
+                    .all()
+                )
+                series = {r.data: float(r.valor_quota) for r in rows}
+                if not series:
+                    continue
+
+                match = _match_cmvm(ppr.nome, cmvm_returns)
+                print(f"\n  {ppr.nome}")
+                if match is None:
+                    # Not a failure: the register may legitimately not list a
+                    # fund. It does mean this fund has no regulator check.
+                    print("    (not in CMVM register - no cross-check available)")
+                    continue
+
+                name, horizons = match
+                tec = cmvm_tec.get(name)
+                if tec is not None:
+                    print(f"    TEC (ongoing charges): {tec:.2f}%")
+
+                for years in sorted(horizons):
+                    published = horizons[years]
+                    implied = annualised(series, years, cmvm_asof)
+                    if implied != implied:  # NaN: not enough history
+                        print(f"    [SKIP] {years}y: insufficient history")
+                        continue
+                    delta = abs(implied - published)
+                    status = "OK" if delta <= RETURN_TOLERANCE_PP else "FAIL"
+                    print(
+                        f"    [{status}] {years:2}y: NAV-implied {implied:5.2f}% vs "
+                        f"CMVM {published:5.2f}%  (delta {delta:.2f}pp)"
+                    )
+                    if delta > RETURN_TOLERANCE_PP:
+                        failures.append(
+                            f"{ppr.nome} CMVM {years}y: "
+                            f"{implied:.2f} vs {published:.2f}"
+                        )
+        except CMVMDataError as exc:
+            # Losing one of two verifiers is worth failing on: it means the
+            # data is less checked than the report would otherwise imply.
+            print(f"  [FAIL] CMVM register unavailable: {exc}")
+            failures.append(f"CMVM verification unavailable: {exc}")
 
         print("\n" + "=" * 60)
         if failures:
