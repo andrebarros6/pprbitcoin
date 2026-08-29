@@ -103,6 +103,8 @@ class TestPPRValidation:
             nav[day] = Decimal("10") + Decimal(i) / 1000
             day -= dt.timedelta(days=3 if i % 5 == 0 else 1)
         validate_nav("Test Fund", nav)  # must not raise
+
+
 class TestHistoricalAlignment:
     """
     Regression tests for _align_historical_data.
@@ -150,6 +152,8 @@ class TestHistoricalAlignment:
         combined = self._calculator()._align_historical_data(ppr, btc)
         tail = combined["ppr_x"].tail(5).tolist()
         assert len(set(tail)) > 1
+
+
 class TestGUIDBindParam:
     """
     Regression tests for the GUID type's bind parameter handling.
@@ -211,3 +215,61 @@ class TestGUIDBindParam:
         from utils.db_types import GUID
 
         assert GUID().process_bind_param(None, self._dialect("postgresql")) is None
+
+
+class TestIMGAValidation:
+    """
+    Validation guards for the IMGA/EuroBic performance-index fetcher.
+
+    The series is rebased to 10,000 rather than being a unit value in EUR, so
+    the plausibility bounds differ from those in ppr_history, but the contract
+    is the same: a degraded fetch must raise rather than reach the database.
+    """
+
+    def _good_series(self, n=800, start=10000):
+        today = dt.date.today()
+        return {
+            today - dt.timedelta(days=i): Decimal(str(start + i))
+            for i in range(n)
+        }
+
+    def test_accepts_plausible_series(self):
+        from services.imga_history import validate_series
+        validate_series("Test Fund", self._good_series())  # must not raise
+
+    def test_rejects_too_few_observations(self):
+        from services.imga_history import IMGADataError, validate_series
+        with pytest.raises(IMGADataError, match="expected"):
+            validate_series("Test Fund", self._good_series(n=50))
+
+    def test_rejects_implausible_value(self):
+        from services.imga_history import IMGADataError, validate_series
+        series = self._good_series()
+        series[dt.date.today()] = Decimal("5")
+        with pytest.raises(IMGADataError, match="implausible index"):
+            validate_series("Test Fund", series)
+
+    def test_rejects_stale_series(self):
+        from services.imga_history import IMGADataError, validate_series
+        old = dt.date.today() - dt.timedelta(days=45)
+        series = {old - dt.timedelta(days=i): Decimal("10000") for i in range(800)}
+        with pytest.raises(IMGADataError, match="[Ss]tale"):
+            validate_series("Test Fund", series)
+
+    def test_rejects_implausible_daily_jump(self):
+        from services.imga_history import IMGADataError, validate_series
+        today = dt.date.today()
+        series = {today - dt.timedelta(days=i): Decimal("10000") for i in range(800)}
+        series[today] = Decimal("50000")
+        with pytest.raises(IMGADataError, match="implausible"):
+            validate_series("Test Fund", series)
+
+    def test_configured_funds_have_required_fields(self):
+        """Every configured fund needs the id and name used for verification."""
+        from services.imga_history import IMGA_FUNDS
+        for fund in IMGA_FUNDS:
+            assert fund["code"].isdigit()
+            for key in ("designation", "nome", "gestor", "categoria"):
+                assert fund.get(key), f"{fund['code']} missing {key}"
+            # These are index series, not unit values, so they carry no ISIN.
+            assert "isin" not in fund

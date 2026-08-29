@@ -80,6 +80,24 @@ def load_apfipp() -> tuple:
     return table, asof
 
 
+def _apfipp_match_tokens(nome: str) -> tuple:
+    """
+    Map a stored fund name to (manager token, distinguishing token) as APFIPP
+    spells them.
+
+    APFIPP lists EuroBic's lifecycle funds under ABANCA, which acquired
+    EuroBic, so the manager token cannot simply be taken from our own name.
+    """
+    if nome.startswith("EuroBic"):
+        # "EuroBic PPR Ciclo de Vida 35-44" -> ABANCA + "35-44"
+        return "ABANCA", nome.split()[-1]
+    if nome.startswith("IMGA"):
+        # "IMGA Investimento PPR Ações" -> IMGA + "Investimento"
+        return "IMGA", nome.split()[1]
+    # "Optimize PPR Ativo" -> Optimize + "Ativo"
+    return nome.split()[0], nome.split()[-1]
+
+
 def annualised(series: dict, years: int, asof: dt.date) -> float:
     """Annualised return over `years`, measured as of `asof`."""
     days = sorted(d for d in series if d <= asof)
@@ -137,14 +155,16 @@ def main() -> int:
                 failures.append(f"{ppr.nome}: no NAV rows")
                 continue
 
-            # Match APFIPP's row for this fund on its distinguishing word.
-            key = ppr.nome.split()[-1]  # Ativo / Equilibrado / Moderado / ...
+            # Match APFIPP's row on the manager plus the fund's distinguishing
+            # words. APFIPP names EuroBic's lifecycle funds under ABANCA, which
+            # acquired EuroBic, so the manager token differs from ours.
+            family, key = _apfipp_match_tokens(ppr.nome)
             match = apfipp[
-                apfipp["nome"].str.contains("Optimize", na=False)
-                & apfipp["nome"].str.contains(key, na=False)
+                apfipp["nome"].str.contains(family, na=False, case=False)
+                & apfipp["nome"].str.contains(key, na=False, regex=False)
             ]
 
-            print(f"\n  {ppr.nome} ({ppr.isin}) - {len(series)} NAV points")
+            print(f"\n  {ppr.nome} ({ppr.isin or 'index'}) - {len(series)} points")
             if match.empty:
                 print("    (not listed by APFIPP - no cross-check available)")
                 continue

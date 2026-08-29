@@ -44,7 +44,7 @@ old.
 
 - **Source:** Optimize Investment Partners' published daily NAV series, read
   from the chart endpoint on their public fund pages.
-- **Coverage:** 4 funds, 2008-09-25 to present, 15,192 NAV observations.
+- **Coverage:** 4 funds, 2008-09-25 to present, 15,196 NAV observations.
 - **Fetcher:** `services/ppr_history.py`
 - **Seed:** `python data/seeds/seed_pprs.py [--refresh]`
 
@@ -76,9 +76,14 @@ a guessed figure would misstate a real product's costs.
 
 ### Scope limitation
 
-The catalogue covers one fund manager (~EUR 195m, roughly 3.5% of the PPR
-market). Extending coverage means a separate integration per manager.
-The app should not imply it compares the whole Portuguese PPR market.
+The catalogue covers two fund managers, roughly 12% of the PPR market by
+assets under management. Extending coverage means a separate integration per
+manager. The app should not imply it compares the whole Portuguese PPR market.
+
+BPI is the largest remaining gap at ~23% of the market across three top-ten
+funds, but its site is an OutSystems app with no reachable JSON endpoint and
+`bpigestaodeativos.pt` does not resolve. Caixa (~8%), Casa de Investimentos
+(~7%) and Alves Ribeiro (~7%) are unprobed.
 
 ### Market context and fund ranking
 
@@ -112,6 +117,55 @@ so a top-10 list should deduplicate by share class.
 By manager: BPI EUR 1,281m, IMGA EUR 921m, Caixa EUR 450m. Adding BPI and
 IMGA would take coverage from ~3.5% to roughly 40% of the market.
 
+## PPR funds: IMGA and EuroBic performance index
+
+- **Source:** the chart API behind charts.imga.pt (`apicharts.imga.pt`), the
+  same one IMGA uses on its own fund pages. No key, no browser required.
+- **Coverage:** 6 funds, 2003-05-06 to present, 19,012 observations.
+- **Fetcher:** `services/imga_history.py`
+
+| Fund | History from |
+|---|---|
+| IMGA Poupanca PPR | 2003-05-06 |
+| IMGA Investimento PPR Acoes | 2006-01-11 |
+| EuroBic PPR Ciclo de Vida -34 | 2018-10-19 |
+| EuroBic PPR Ciclo de Vida 35-44 | 2018-10-18 |
+| EuroBic PPR Ciclo de Vida 45-54 | 2018-10-16 |
+| EuroBic PPR Ciclo de Vida +55 | 2018-10-15 |
+
+**This series is a performance index rebased to 10,000, not a unit value in
+EUR.** Returns, volatility, Sharpe, Sortino and drawdown are unaffected
+because they depend only on ratios between points, but the stored numbers are
+not unit prices. Such funds are marked `(indice)` in `categoria` and carry no
+ISIN, and the disclaimer says so.
+
+Fund ids are verified against their expected names on every fetch, so a
+renumbering upstream fails loudly instead of attaching one fund's history to
+another's name. Two caveats found while integrating: `code` must be sent as a
+string (an integer is rejected), and the obvious-looking id for IMGA Poupanca
+PPR (48837) returns an empty series -- the populated one is 61601.
+
+The CAT share classes (61602, 61604) duplicate the funds above with a shorter
+history starting 2021, and IMGA Crescimento (63100/63101) returns nothing, so
+none are seeded.
+
+## CMVM Portal do Investidor (reference, not a series)
+
+`investidor.cmvm.pt` exposes the regulator's PPR comparator through an
+OutSystems data action:
+
+    POST /PInvestidor/screenservices/PInvestidor/Comparator/PPRList/DataActionGetPPRs
+
+It returns **all 167 PPR funds** with YTD/1/2/3/5/10-year returns, the TEC
+(taxa de encargos correntes), risk class and managing entity, and it is
+callable with a plain POST -- no browser needed -- once the OutSystems
+`versionInfo` tokens are supplied. `MaxRecords` controls the page size.
+
+It carries **no NAV time series**, so it cannot drive the chart. It is
+valuable as an authoritative reference for fund discovery, fee data (the TEC
+this project currently leaves NULL) and as a second cross-check on returns.
+Not yet integrated.
+
 ## Verification
 
 ```bash
@@ -127,14 +181,24 @@ Returns are compared on APFIPP's own as-of date, parsed from its table header.
 Comparing a return measured today against one published weeks earlier produces
 large spurious differences on short horizons.
 
-Last run (APFIPP as of 2026-08-07) — all 12 return checks within 0.1pp:
+Last run (APFIPP as of 2026-08-07) — all 30 return checks within 0.1pp,
+every 1-year figure exact:
 
 | Fund | 1y implied / published | 3y | 5y |
 |---|---|---|---|
-| Ativo | 17.00 / 17.00 | 9.32 / 9.32 | 3.82 / 3.86 |
-| Equilibrado | 10.49 / 10.49 | 7.11 / 7.15 | 2.34 / 2.36 |
-| Moderado | 7.07 / 7.07 | 6.64 / 6.73 | 2.26 / 2.27 |
-| Agressivo | 33.55 / 33.55 | 13.17 / 13.11 | 5.52 / 5.62 |
+| Optimize Ativo | 17.00 / 17.00 | 9.32 / 9.32 | 3.82 / 3.86 |
+| Optimize Equilibrado | 10.49 / 10.49 | 7.11 / 7.15 | 2.34 / 2.36 |
+| Optimize Moderado | 7.07 / 7.07 | 6.64 / 6.73 | 2.26 / 2.27 |
+| Optimize Agressivo | 33.55 / 33.55 | 13.17 / 13.11 | 5.52 / 5.62 |
+| IMGA Poupanca | 5.28 / 5.28 | 5.04 / 5.08 | 0.48 / 0.49 |
+| IMGA Investimento | 8.70 / 8.70 | 6.87 / 6.94 | 1.97 / 1.98 |
+| EuroBic -34 | 11.37 / 11.37 | 8.21 / 8.17 | 3.07 / 3.08 |
+| EuroBic 35-44 | 10.42 / 10.42 | 7.83 / 7.81 | 2.91 / 2.92 |
+| EuroBic 45-54 | 6.75 / 6.75 | 6.00 / 5.99 | 1.59 / 1.58 |
+| EuroBic +55 | 3.28 / 3.28 | 4.05 / 4.07 | 0.13 / 0.11 |
+
+APFIPP lists the EuroBic lifecycle funds under ABANCA, which acquired
+EuroBic, so the verifier maps that manager name explicitly.
 
 ## Scheduled updates
 

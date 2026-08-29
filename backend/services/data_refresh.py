@@ -17,6 +17,10 @@ from models.bitcoin import BitcoinHistoricalData
 from models.ppr import PPR, PPRHistoricalData
 from services.bitcoin_history import fetch_btc_eur_daily, BitcoinDataError
 from services.ppr_history import fetch_all_funds, PPRDataError
+from services.imga_history import (
+    fetch_all_funds as fetch_imga_funds,
+    IMGADataError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,15 +72,22 @@ def refresh_pprs() -> Dict:
     start = dt.date.today() - dt.timedelta(days=REFRESH_LOOKBACK_DAYS)
     db = SessionLocal()
     try:
-        funds = fetch_all_funds()
+        funds = fetch_all_funds() + fetch_imga_funds()
 
         inserted = updated = 0
         for fund in funds:
-            ppr = db.query(PPR).filter(PPR.isin == fund["isin"]).first()
+            # Optimize funds are identified by ISIN. The IMGA/EuroBic series
+            # have no ISIN in the source, so those match on name instead.
+            isin = fund.get("isin")
+            if isin:
+                ppr = db.query(PPR).filter(PPR.isin == isin).first()
+            else:
+                ppr = db.query(PPR).filter(PPR.nome == fund["nome"]).first()
+
             if ppr is None:
                 logger.warning(
                     "PPR %s (%s) not in database; run the seed script first.",
-                    fund["nome"], fund["isin"],
+                    fund["nome"], isin or "no ISIN",
                 )
                 continue
 
@@ -103,7 +114,7 @@ def refresh_pprs() -> Dict:
         logger.info("PPR refresh: %d inserted, %d updated", inserted, updated)
         return {"success": True, "inserted": inserted, "updated": updated}
 
-    except PPRDataError as exc:
+    except (PPRDataError, IMGADataError) as exc:
         db.rollback()
         logger.error("PPR refresh failed, existing data untouched: %s", exc)
         return {"success": False, "error": str(exc)}

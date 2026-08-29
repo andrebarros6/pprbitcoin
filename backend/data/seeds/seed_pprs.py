@@ -1,8 +1,16 @@
 """
 Seed script to populate the database with real Portuguese PPR funds.
 
-Source: Optimize Investment Partners' published daily NAV series
-(see services/ppr_history.py).
+Sources:
+  - Optimize Investment Partners' published daily NAV series
+    (services/ppr_history.py), in EUR per unit.
+  - IMGA's chart API for IMGA and EuroBic funds (services/imga_history.py),
+    as a performance index rebased to 10,000 rather than a unit value.
+
+Both are real observed daily series. The index-based funds are marked in
+`categoria` so the UI never presents an index as a unit price; returns and
+risk metrics are unaffected because they depend only on ratios between
+points.
 
 There is deliberately NO synthetic fallback. An earlier version invented both
 the fund list (plausible-looking names with fabricated ISINs) and their
@@ -25,6 +33,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from database import SessionLocal, engine, Base  # noqa: E402
 from models.ppr import PPR, PPRHistoricalData  # noqa: E402
 from services.ppr_history import fetch_all_funds, PPRDataError  # noqa: E402
+from services.imga_history import (  # noqa: E402
+    fetch_all_funds as fetch_imga_funds,
+    IMGADataError,
+)
 
 BATCH_SIZE = 500
 
@@ -52,9 +64,13 @@ def seed_pprs(refresh: bool = False) -> int:
             )
             return 0
 
-        # Fetch and validate everything BEFORE touching the database.
-        print("Fetching real PPR daily NAV history...")
+        # Fetch and validate everything BEFORE touching the database, so a
+        # failed fetch cannot leave a half-populated catalogue.
+        print("Fetching real PPR daily NAV history (Optimize)...")
         funds = fetch_all_funds()
+
+        print("Fetching real PPR daily series (IMGA / EuroBic)...")
+        funds = funds + fetch_imga_funds()
 
         if refresh and existing_count > 0:
             print(f"  Removing {existing_count} existing PPRs and their history...")
@@ -64,11 +80,17 @@ def seed_pprs(refresh: bool = False) -> int:
 
         total_written = 0
         for fund in funds:
+            # IMGA/EuroBic series are an index rebased to 10,000, not a unit
+            # value in EUR. Marking the category keeps that visible downstream.
+            categoria = fund["categoria"]
+            if "isin" not in fund:
+                categoria = f"{categoria} (índice)"
+
             ppr = PPR(
                 nome=fund["nome"],
                 gestor=fund["gestor"],
-                isin=fund["isin"],
-                categoria=fund["categoria"],
+                isin=fund.get("isin"),
+                categoria=categoria,
                 taxa_gestao=None,  # see module docstring
             )
             db.add(ppr)
@@ -125,7 +147,7 @@ if __name__ == "__main__":
 
     try:
         seed_pprs(refresh=args.refresh)
-    except PPRDataError as exc:
+    except (PPRDataError, IMGADataError) as exc:
         print(f"\n[FAILED] Could not obtain real PPR data: {exc}", file=sys.stderr)
         print("Nothing was written to the database.", file=sys.stderr)
         sys.exit(1)
