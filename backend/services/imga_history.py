@@ -53,8 +53,12 @@ IMGA_FUNDS = [
     },
     {
         "code": "61603",
+        # The chart API labels this fund "IMGA Investimento PPR Ações", but
+        # CMVM and APFIPP both register it as "IMGA Investimento PPR/OICVM"
+        # with no "Ações". Confirmed by returns: 1y 4.20% matches CMVM
+        # exactly. The regulator's name is used so fund matching works.
         "designation": "IMGA Investimento PPR Ações",
-        "nome": "IMGA Investimento PPR Ações",
+        "nome": "IMGA Investimento PPR",
         "gestor": "IM Gestão de Ativos",
         "categoria": "PPR Ações",
     },

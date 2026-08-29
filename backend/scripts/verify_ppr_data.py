@@ -13,7 +13,6 @@ import datetime as dt
 import io
 import re
 import sys
-import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -27,6 +26,7 @@ from models.ppr import PPR, PPRHistoricalData  # noqa: E402
 from services.cmvm_reference import (  # noqa: E402
     CMVMDataError,
     fetch_ppr_register,
+    match_fund,
     reference_as_of,
     returns_by_fund,
     tec_by_fund,
@@ -117,58 +117,6 @@ def annualised(series: dict, years: int, asof: dt.date) -> float:
     if start == last:
         return float("nan")
     return ((series[last] / series[start]) ** (1 / years) - 1) * 100
-
-
-def _strip_accents(text: str) -> str:
-    """CMVM and our own names differ in accents (POUPANCA vs POUPANÇA)."""
-    return "".join(
-        c for c in unicodedata.normalize("NFD", text)
-        if unicodedata.category(c) != "Mn"
-    )
-
-
-def _match_cmvm(nome: str, register: dict):
-    """
-    Find a fund in the CMVM register by name.
-
-    CMVM writes names in full and in upper case ("OPTIMIZE PPR/OICVM ATIVO -
-    FUNDO DE INVESTIMENTO ABERTO DE POUPANÇA REFORMA") while we store a short
-    form ("Optimize PPR Ativo"), so matching is on the distinguishing words
-    rather than the whole string.
-
-    Substring matching alone is not enough: every CMVM name ends in "FUNDO DE
-    INVESTIMENTO ABERTO DE POUPANÇA REFORMA", so "IMGA Poupança PPR" matches
-    the IMGA *Investimento* record too. Candidates are therefore scored and
-    an ambiguous match is rejected rather than guessed at -- silently
-    verifying one fund against another fund's returns is worse than not
-    verifying at all.
-    """
-    words = [_strip_accents(w).upper() for w in nome.split() if len(w) > 3]
-    if not words:
-        return None
-
-    candidates = []
-    for name, horizons in register.items():
-        flat = _strip_accents(name).upper()
-        if not all(w in flat for w in words):
-            continue
-        # Prefer the name whose leading portion (before the boilerplate
-        # suffix) is closest in length to what we searched for.
-        head = flat.split(" - FUNDO")[0].split(", FUNDO")[0]
-        candidates.append((abs(len(head) - len(" ".join(words))), name, horizons))
-
-    if not candidates:
-        return None
-
-    candidates.sort()
-    best = candidates[0]
-    # A tie on score between differently-named funds means we cannot tell
-    # them apart; refuse rather than pick arbitrarily.
-    ties = [c for c in candidates if c[0] == best[0]]
-    distinct = {_strip_accents(c[1]).upper().split(" - FUNDO")[0] for c in ties}
-    if len(distinct) > 1:
-        return None
-    return best[1], best[2]
 
 
 def main() -> int:
@@ -267,7 +215,7 @@ def main() -> int:
                 if not series:
                     continue
 
-                match = _match_cmvm(ppr.nome, cmvm_returns)
+                match = match_fund(ppr.nome, cmvm_returns)
                 print(f"\n  {ppr.nome}")
                 if match is None:
                     # Not a failure: the register may legitimately not list a

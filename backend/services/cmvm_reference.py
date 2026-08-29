@@ -24,6 +24,7 @@ spurious differences on short horizons, so callers must align dates.
 """
 import datetime as dt
 import json
+import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -124,6 +125,79 @@ def returns_by_fund(funds: List[dict]) -> Dict[str, Dict[int, float]]:
         if horizons:
             result[fund["NOM_FUN"].strip().upper()] = horizons
     return result
+
+
+def _strip_accents(text: str) -> str:
+    """CMVM and our own names differ in accents (POUPANCA vs POUPANÇA)."""
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+# Funds CMVM registers under a different manager than the one we store.
+# ABANCA acquired EuroBic, so the lifecycle range is registered under ABANCA.
+MANAGER_ALIASES = {"EUROBIC": "ABANCA"}
+
+
+def match_fund(nome: str, register: Dict[str, dict]):
+    """
+    Find one of our funds in a CMVM-keyed mapping, by name.
+
+    CMVM writes names in full and upper case ("OPTIMIZE PPR/OICVM ATIVO -
+    FUNDO DE INVESTIMENTO ABERTO DE POUPANÇA REFORMA") while we store a short
+    form ("Optimize PPR Ativo"), so matching is on the distinguishing words.
+
+    Substring matching alone is not enough: every CMVM name ends in the same
+    boilerplate, so "IMGA Poupança PPR" also matches the IMGA *Investimento*
+    record. Candidates are scored on the distinguishing portion of the name
+    and an ambiguous match is refused rather than guessed -- silently pairing
+    one fund with another fund's figures is worse than no match at all.
+
+    Returns (cmvm_name, value) or None.
+    """
+    words = []
+    for word in nome.split():
+        flat = _strip_accents(word).upper()
+        # Short tokens are usually noise ("de", "PPR"), but an age-band label
+        # like "-34" or "+55" is the only thing telling a lifecycle fund from
+        # its siblings, so those are kept.
+        if len(word) <= 3 and not any(c.isdigit() for c in word):
+            continue
+        words.append(MANAGER_ALIASES.get(flat, flat))
+    if not words:
+        return None
+
+    candidates = []
+    for name, value in register.items():
+        flat = _strip_accents(name).upper()
+        # Match against the distinguishing head only. The boilerplate tail
+        # ("- FUNDO DE INVESTIMENTO ABERTO DE AÇÕES DE POUPANÇA REFORMA")
+        # contains words like INVESTIMENTO and ACOES, so searching the whole
+        # string makes "IMGA Investimento ... Ações" match IMGA *Crescimento*.
+        head = flat.split(" - FUNDO")[0].split(", FUNDO")[0].split(" FUNDO")[0]
+        if not all(w in head for w in words):
+            continue
+        candidates.append((abs(len(head) - len(" ".join(words))), name, value))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda c: (c[0], c[1]))
+    best = candidates[0]
+
+    # Distinct products that scored close to the winner mean the search terms
+    # did not actually distinguish them -- "SOMEFUND PPR" against ALPHA and
+    # BETA scores 10 and 9, so an exact-tie check would let a coin-flip
+    # through. Anything within one character is treated as ambiguous.
+    near = [c for c in candidates if c[0] - best[0] <= 1]
+    distinct = {
+        _strip_accents(c[1]).upper().split(" - FUNDO")[0].split(" FUNDO")[0]
+        for c in near
+    }
+    if len(distinct) > 1:
+        return None
+    return best[1], best[2]
 
 
 def tec_by_fund(funds: List[dict]) -> Dict[str, float]:

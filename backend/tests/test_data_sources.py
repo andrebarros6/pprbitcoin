@@ -273,3 +273,71 @@ class TestIMGAValidation:
                 assert fund.get(key), f"{fund['code']} missing {key}"
             # These are index series, not unit values, so they carry no ISIN.
             assert "isin" not in fund
+
+
+class TestCMVMFundMatching:
+    """
+    Tests for match_fund, which pairs our short fund names with the CMVM
+    register's full upper-case ones.
+
+    Two real defects motivated these. Every CMVM name ends in the same
+    boilerplate ("... FUNDO DE INVESTIMENTO ABERTO DE AÇÕES DE POUPANÇA
+    REFORMA"), so searching the whole string made "IMGA Investimento PPR
+    Ações" match IMGA *Crescimento*. And dropping short tokens discarded the
+    "-34"/"+55" age bands that are the only thing distinguishing the
+    lifecycle funds from each other.
+    """
+
+    REGISTER = {
+        "OPTIMIZE PPR/OICVM ATIVO - FUNDO DE INVESTIMENTO ABERTO DE POUPANÇA REFORMA": 2.0,
+        "OPTIMIZE PPR/OICVM AGRESSIVO - FUNDO DE INVESTIMENTO ABERTO DE POUPANÇA REFORMA": 2.01,
+        "IMGA INVESTIMENTO PPR/OICVM - FUNDO DE INVESTIMENTO ABERTO DE POUPANÇA REFORMA": 2.1,
+        "IMGA CRESCIMENTO PPR/OICVM - FUNDO DE INVESTIMENTO ABERTO DE AÇÕES DE POUPANÇA": 1.55,
+        "IMGA POUPANÇA PPR / OICVM - FUNDO DE INVESTIMENTO ABERTO DE POUPANÇA REFORMA": 1.62,
+        "ABANCA PPR/OICVM CICLO DE VIDA -34 - FUNDO DE INVESTIMENTO ABERTO": 2.22,
+        "ABANCA PPR/OICVM CICLO DE VIDA +55 - FUNDO DE INVESTIMENTO ABERTO": 1.63,
+        "ABANCA PPR/OICVM CICLO DE VIDA 35-44 - FUNDO DE INVESTIMENTO ABERTO": 1.94,
+    }
+
+    def _match(self, nome):
+        from services.cmvm_reference import match_fund
+        return match_fund(nome, self.REGISTER)
+
+    def test_matches_simple_name(self):
+        assert self._match("Optimize PPR Ativo")[1] == 2.0
+
+    def test_does_not_confuse_similar_siblings(self):
+        """Ativo must not match Agressivo, and vice versa."""
+        assert self._match("Optimize PPR Agressivo")[1] == 2.01
+
+    def test_boilerplate_does_not_create_false_match(self):
+        """
+        "IMGA Investimento PPR" must match IMGA Investimento, not
+        IMGA Crescimento whose boilerplate tail also contains "INVESTIMENTO".
+        """
+        name, value = self._match("IMGA Investimento PPR")
+        assert value == 2.1
+        assert "INVESTIMENTO PPR" in name
+
+    def test_matches_negative_age_band(self):
+        assert self._match("EuroBic PPR Ciclo de Vida -34")[1] == 2.22
+
+    def test_matches_positive_age_band(self):
+        assert self._match("EuroBic PPR Ciclo de Vida +55")[1] == 1.63
+
+    def test_manager_alias_is_applied(self):
+        """EuroBic's funds are registered by CMVM under ABANCA."""
+        name, _ = self._match("EuroBic PPR Ciclo de Vida 35-44")
+        assert name.startswith("ABANCA")
+
+    def test_unknown_fund_returns_none(self):
+        assert self._match("Nonexistent PPR Fund") is None
+
+    def test_ambiguous_match_is_refused(self):
+        """Two equally-good candidates must return None, not an arbitrary pick."""
+        from services.cmvm_reference import match_fund
+        register = {
+            "SOMEFUND PPR ALPHA - FUNDO DE INVESTIMENTO": 1.0,
+            "SOMEFUND PPR BETA - FUNDO DE INVESTIMENTO": 2.0,
+        }
+        assert match_fund("Somefund PPR", register) is None
