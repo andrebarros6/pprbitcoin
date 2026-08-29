@@ -127,19 +127,57 @@ the equity-sounding "Investimento".
 BPI Smart Obrigações carries **5,000 daily rows back to 2006-05-12**, the
 deepest PPR series found from any source.
 
-### Investing.com data is current; these BPI series are not
+### Why the BPI series stop on 2026-07-01: the SMART rebrand
 
-All four BPI series stop at **2026-07-01**, roughly two months stale. This is
-not an Investing.com problem and not a fetch artifact:
+All four BPI series stop at **2026-07-01**. This is not an Investing.com
+problem and not a fetch artifact -- the listing page quotes Optimize Ativo at
+21.633 and Agressivo at 17.159, matching our own 2026-08-27 values exactly,
+and both the JSON API and the rendered table agree on the same cut-off for
+BPI.
 
-- The Investing.com listing page quotes Optimize Ativo at 21.633 and Optimize
-  Agressivo at 17.159, which match our own 2026-08-27 values exactly.
-- Both the JSON API and the rendered 20-row table agree on 2026-07-01 for BPI.
+The cause is a **rebrand effective 3 July 2026**. BPI Gestão de Ativos
+renamed its "BPI Reforma" PPR range to "BPI SMART", alongside changes to each
+fund's investment policy. Participants were notified and given until 30 June
+2026 to redeem free of charge if they disagreed.
 
-So Investing.com is up to date generally, and these four specific funds
-stopped reporting a NAV after 1 July 2026. Before seeding them, establish
-why -- a merger, a share-class migration, or a genuine reporting gap -- since
-a fund that has stopped publishing may no longer be offered.
+This is the same mapping the return-matching produced, arrived at
+independently:
+
+| Old name (still on Investing.com) | New name from 2026-07-03 |
+|---|---|
+| BPI Reforma Valorização | BPI SMART Dinâmico |
+| BPI Reforma Investimento | BPI SMART Moderado |
+| BPI Reforma Obrigações | BPI SMART Obrigações |
+| BPI Reforma Global Equities | BPI SMART Ações |
+
+Corroborating details:
+
+- The **ISINs are unchanged** (PTYPJDLM0002 still resolves to the fund now
+  called BPI SMART Dinâmico), so these are renames, not new funds.
+- Investing.com's own historical-data page titles already show the SMART
+  names while its listing page still shows the old ones.
+- The Morningstar ticker for BPI SMART Ações, `0P0001ITBQ`, is the same
+  ticker Investing.com reports for "BPI Reforma Global Equities".
+- The last NAV in the series, 9.143, is quoted elsewhere as the value on
+  2026-07-03 -- the changeover date itself.
+- BPI's page for BPI SMART Dinâmico gives "Data de Início de Actividade
+  03-07-2026" and is open for subscriptions from EUR 1.
+
+**The funds are alive and open.** Investing.com simply stopped updating these
+records at the rename and has not carried the series forward under the new
+names, so its BPI data is a closed historical archive ending 2026-07-01.
+
+Consequences for seeding:
+
+- The pre-rebrand history is real and usable, and BPI SMART Obrigações
+  carries 5,000 rows back to 2006.
+- It cannot be kept current from this source. Investing.com's Portugal
+  listing carries no BPI SMART records -- the three "Smart" entries on it are
+  "Smart Invest", an unrelated manager -- so a live feed needs a direct BPI
+  source or another provider.
+- The investment policies changed on the same date, so pre- and post-rebrand
+  performance are not strictly the same strategy. Any chart spanning
+  2026-07-03 should say so.
 
 ### Scope limitation
 
