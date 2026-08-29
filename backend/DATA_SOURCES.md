@@ -59,7 +59,7 @@ Rejected alternatives:
 
 | Source | Why not |
 |---|---|
-| Investing.com | HTTP 403 to scripted requests (Cloudflare). A **visible, non-headless** Chrome session does get through, but headless is detected — so it cannot run on a server or in CI. Usable as a periodic manual export only. |
+| Investing.com | HTTP 403 to scripted requests (Cloudflare). A **visible, non-headless** Chrome session does get through, but headless is detected — so it cannot run on a server or in CI. Usable as a periodic manual export only. See "Investing.com fund naming" below before trusting a fund's identity. |
 | APFIPP calculator API | Covers 58 PPR funds across all 9 major managers, ~20 years, including inactive funds — but returns only two aggregate numbers (effective + annualised return) per query, not a time series. Cannot populate a chart. |
 | IMGA charts API | Real daily series for 13 PPR funds (IMGA + EuroBic), but rebased to 10,000 rather than actual NAV, and history starts 2018–2021. |
 | BPI | OutSystems JS app; no reachable JSON endpoint without a browser. |
@@ -73,6 +73,57 @@ drawdown are only meaningful when computed from the real path.
 `taxa_gestao` is deliberately left NULL. The published NAV is already net of
 management fees, and the fee is not machine-readable from the source; storing
 a guessed figure would misstate a real product's costs.
+
+### Investing.com fund naming
+
+Investing.com lists Portuguese PPR funds under **outdated names**. Its page
+for ISIN `PTYPJDLM0002` is titled "BPI Reforma Valorização A PPR/OICVM", a
+name that appears in neither the CMVM register nor APFIPP — both list only
+"BPI Smart" funds. The fund was evidently renamed and Investing.com kept the
+old title.
+
+Identity was established by matching returns rather than names. Measured to
+2025-12-31, the Investing.com series gives 1y 1.53%, 2y 5.36%, 3y 6.73%.
+Against CMVM's four BPI funds:
+
+| CMVM fund | 1y | delta |
+|---|---|---|
+| **BPI Smart Dinâmico** | **1.53** | **0.00** |
+| BPI Smart Obrigações | 2.01 | 0.48 |
+| BPI Smart Moderado | 5.03 | 3.50 |
+| BPI Smart Ações | −5.40 | 6.93 |
+
+So `PTYPJDLM0002` is **BPI Smart Dinâmico** (CMVM `NUM_FUN` 781). The 2025
+calendar-year return computed from the series (+1.53%) independently equals
+CMVM's published 1-year figure.
+
+A related trap: APFIPP lists three "BPI Smart Dinâmico" classes with unit
+values around 5.00, while this series runs 8.02 → 9.14. That is not a
+different fund. CMVM shows five records sharing `NUM_FUN` 781 — one fund,
+five share classes — of which only the original carries history; the four
+newer classes launched at a base of 5.00 and report no returns yet. The
+series itself contains no jump greater than 15%, confirming no rebase.
+
+**Rule: never identify a fund from an Investing.com page title.** Confirm it
+by matching returns against the CMVM register, which is keyed by `NUM_FUN`
+and is the regulator's own record.
+
+Investing.com lists four BPI PPR funds. Only one has been confirmed; the
+others are unresolved and must each be identified by the same return-matching
+procedure before use:
+
+| Investing.com title | NAV | AUM | CMVM identity |
+|---|---|---|---|
+| BPI Reforma Valorização | 9.143 | 224m | **BPI Smart Dinâmico** (confirmed, 0.00pp) |
+| BPI Reforma Investimento | 16.136 | 650m | unresolved |
+| BPI Reforma Obrigações | 13.668 | 356m | unresolved |
+| BPI Reforma Global Equities | 7.538 | 51m | unresolved |
+
+CMVM lists exactly four BPI PPR funds (Ações, Dinâmico, Moderado,
+Obrigações), so the names cannot be matched one-to-one by strategy alone:
+"Reforma Investimento" and "Reforma Global Equities" have no obvious
+counterpart, and "Moderado" has no obvious Investing.com title. Guessing
+from names is exactly the error this section exists to prevent.
 
 ### Scope limitation
 
