@@ -173,8 +173,30 @@ Consequences for seeding:
   carries 5,000 rows back to 2006.
 - It cannot be kept current from this source. Investing.com's Portugal
   listing carries no BPI SMART records -- the three "Smart" entries on it are
-  "Smart Invest", an unrelated manager -- so a live feed needs a direct BPI
-  source or another provider.
+  "Smart Invest", an unrelated manager -- and the post-rebrand ISINs
+  (PTBG2OHM0004, PTBG2QHM0002, PTBG2WHM0004) all return 404 there.
+
+### Searching for a live BPI feed: what was tried
+
+No automatable daily source for the BPI SMART funds has been found yet.
+
+| Source | Result |
+|---|---|
+| bancobpi.pt fund pages | OutSystems app, no NAV endpoint in the HTML |
+| bancobpi.pt `/cotacoes` | Has a PPR option in its instrument dropdown, but the native `<select>` sits behind a custom widget that resists scripted selection |
+| Investing.com, new ISINs | 404 -- only the pre-rebrand records exist |
+| big.pt `/Reports/FundInfoDetails/Index/{ISIN}` | Serves BPI funds by ISIN and offers a "Histórico de Cotações" link, but returns "Fundo não encontrado" for both the old and new PPR ISINs |
+| stockevents.app | Carries `PTBG2OHM0004.FUND` (BPI SMART Ações P) live at EUR 5.15 with an interactive chart, but exposes no downloadable series |
+
+Two observations worth carrying forward:
+
+- The new share classes trade around EUR 5.15, consistent with the four
+  newly-created classes under CMVM `NUM_FUN` 781 launching at a base of 5.00.
+  A post-rebrand series will therefore **not** continue the old 9.14 series
+  numerically, even though the ISIN of the original class is unchanged.
+- big.pt's ISIN-keyed URL pattern works for other BPI funds (verified with
+  PTYPIALM0006, BPI Renda Trimestral), so it is worth re-checking once the
+  SMART funds have been trading longer.
 - The investment policies changed on the same date, so pre- and post-rebrand
   performance are not strictly the same strategy. Any chart spanning
   2026-07-03 should say so.
