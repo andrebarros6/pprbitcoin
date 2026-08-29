@@ -27,6 +27,20 @@ const DisclaimerBanner: React.FC = () => {
             criptomoedas estão sujeitos a perdas. Consulte sempre um consultor financeiro antes de
             tomar decisões de investimento.
           </p>
+          <p className="mt-2 text-sm text-yellow-700">
+            <strong>Dados:</strong> séries diárias reais publicadas pelas sociedades gestoras
+            (Optimize Investment Partners e IM Gestão de Ativos) e cotações BTC/EUR da Bitstamp.
+            As rendibilidades implícitas são verificadas face aos valores publicados pela APFIPP.
+            Os fundos marcados como “índice” são publicados pela gestora como índice de
+            desempenho (base 10 000), não como valor da unidade de participação; as
+            rendibilidades e métricas de risco não são afetadas.
+          </p>
+          <p className="mt-2 text-sm text-yellow-700">
+            <strong>Cobertura:</strong> esta ferramenta compara 10 fundos PPR de duas
+            sociedades gestoras, o que representa cerca de 12% do mercado por ativos sob gestão.
+            Não representa o mercado português de PPR no seu conjunto — a CMVM lista 167 fundos
+            PPR. A rendibilidade passada não é indicativa de resultados futuros.
+          </p>
         </div>
       </div>
     </div>

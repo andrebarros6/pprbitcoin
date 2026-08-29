@@ -82,7 +82,17 @@ const PPRSelector: React.FC<PPRSelectorProps> = ({ selectedPPRIds, onChange }) =
             <div className="ml-3 flex-1">
               <div className="font-medium text-gray-900">{ppr.nome}</div>
               <div className="text-sm text-gray-500">
-                {ppr.gestor} • TER: {ppr.taxa_gestao ? Number(ppr.taxa_gestao).toFixed(2) : 'N/A'}%
+                {/* TEC (Taxa de Encargos Correntes) as published by the CMVM
+                    register. It is the ongoing charges figure -- management,
+                    depositary, audit and supervision combined -- not a
+                    management fee alone, so it is labelled TEC rather than
+                    TER. The NAV series already reflect it, so it is shown for
+                    comparison and never applied to returns. Still omitted
+                    entirely when unknown, rather than shown as "N/A%". */}
+                {ppr.gestor}
+                {ppr.taxa_gestao
+                  ? ` • TEC: ${Number(ppr.taxa_gestao).toFixed(2)}%`
+                  : ''}
               </div>
             </div>
           </label>

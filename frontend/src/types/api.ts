@@ -69,11 +69,35 @@ export interface CompareRequest {
 
 export interface CompareResponse {
   portfolios: PortfolioResponse[];
-  comparison_summary: {
-    best_return: string;
-    best_sharpe: string;
-    best_sortino: string;
-    lowest_volatility: string;
-    lowest_drawdown: string;
+  comparison_summary: ComparisonSummary;
+}
+
+/**
+ * Shape actually returned by POST /api/v1/portfolio/compare.
+ *
+ * Each entry of metrics_comparison names the winning portfolio for that
+ * metric. "Best" is metric-aware on the backend: lowest wins for volatility
+ * and drawdown, highest for the rest.
+ */
+export interface MetricComparison {
+  values: number[];
+  best_index: number;
+  best_portfolio: string;
+}
+
+export interface ComparisonSummary {
+  portfolios: string[];
+  metrics_comparison: {
+    total_return_percentage: MetricComparison;
+    cagr: MetricComparison;
+    volatility: MetricComparison;
+    sharpe_ratio: MetricComparison;
+    max_drawdown: MetricComparison;
+    final_value: MetricComparison;
+  };
+  recommended_portfolio: {
+    index: number;
+    name: string;
+    reason: string;
   };
 }

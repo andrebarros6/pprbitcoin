@@ -242,14 +242,23 @@ class PortfolioCalculator:
             # No Bitcoin data, just use PPR data
             return ppr_data
 
-        # Merge dataframes
-        combined = pd.concat([ppr_data, bitcoin_data], axis=1)
+        # Merge dataframes. concat unions the two date indexes -- PPR quotes
+        # only on business days, Bitcoin trades every day -- and returns them
+        # in concatenation order, not date order. Sorting is essential: an
+        # unsorted index makes ffill carry values backwards in time and makes
+        # every daily return meaningless.
+        combined = pd.concat([ppr_data, bitcoin_data], axis=1).sort_index()
 
         # Forward fill missing values (use last known price)
         combined = combined.ffill()
 
         # Drop rows with any remaining NaN (beginning of series)
         combined = combined.dropna()
+
+        # Trailing days after the last PPR quote would otherwise repeat that
+        # quote while Bitcoin keeps moving, which reads as a real divergence.
+        last_ppr_quote = ppr_data.dropna(how="all").index.max()
+        combined = combined[combined.index <= last_ppr_quote]
 
         return combined
 

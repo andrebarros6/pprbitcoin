@@ -88,8 +88,13 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({
           </div>
         </div>
 
+        {/* Earliest available data varies by fund: the Optimize Ativo and
+            Equilibrado series start in 2008, Moderado in 2010 and Agressivo
+            in 2018. The calculation is limited by the shortest series among
+            the funds selected. */}
         <p className="text-xs text-gray-500">
-          Dados disponíveis a partir de 2019. Períodos mais longos fornecem análises mais precisas.
+          Dados disponíveis desde 2008, consoante o fundo selecionado. Períodos
+          mais longos fornecem análises mais precisas.
         </p>
       </div>
     </div>

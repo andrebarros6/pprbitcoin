@@ -1,142 +1,107 @@
 """
-Seed script to populate the database with Bitcoin historical data
-Uses CoinGecko API to fetch real historical data
+Seed script to populate the database with real Bitcoin historical data.
+
+Source: Bitstamp public OHLC (see services/bitcoin_history.py).
+
+There is deliberately NO synthetic fallback. An earlier version fell back to a
+random walk when the API call failed, which silently filled the database with
+prices that were never real. If the fetch or validation fails, this script
+exits non-zero and writes nothing.
 """
+import argparse
 import sys
 from pathlib import Path
 
 # Add backend directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from database import SessionLocal, engine, Base
-from models.bitcoin import BitcoinHistoricalData
-from datetime import datetime, timedelta
-import requests
-import time
+from database import SessionLocal, engine, Base  # noqa: E402
+from models.bitcoin import BitcoinHistoricalData  # noqa: E402
+from services.bitcoin_history import fetch_btc_eur_daily, BitcoinDataError  # noqa: E402
 
-def fetch_coingecko_data(days=1825):
+BATCH_SIZE = 500
+
+
+def seed_bitcoin(refresh: bool = False) -> int:
     """
-    Fetch Bitcoin historical data from CoinGecko API (free, no key needed)
+    Seed Bitcoin historical data.
 
     Args:
-        days: Number of days of historical data (default: 1825 = ~5 years)
+        refresh: If True, delete existing rows and re-seed. Required to
+                 replace data seeded by the old synthetic fallback.
+
+    Returns:
+        Number of records written.
     """
-    print(f"Fetching {days} days of Bitcoin data from CoinGecko...")
-
-    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
-    params = {
-        "vs_currency": "eur",
-        "days": days,
-        "interval": "daily"
-    }
-
-    try:
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-
-        prices = data.get("prices", [])
-        print(f"  [OK] Fetched {len(prices)} price points")
-
-        return prices
-    except Exception as e:
-        print(f"  [ERROR] Error fetching from CoinGecko: {e}")
-        print("  [INFO] Using fallback sample data instead...")
-        return None
-
-
-def generate_sample_data():
-    """
-    Generate sample Bitcoin data if API fails
-    This creates realistic-looking data for testing
-    """
-    print("Generating sample Bitcoin data...")
-
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=1825)  # 5 years
-
-    data = []
-    current_date = start_date
-    base_price = 3000.0  # Starting price ~5 years ago
-    current_price = base_price
-
-    # Simulate Bitcoin's volatile growth
-    while current_date <= end_date:
-        # Bitcoin-like volatility
-        import random
-        daily_change = random.uniform(-0.08, 0.08)  # ±8% daily
-        trend = 0.002  # Small upward trend
-
-        current_price *= (1 + daily_change + trend)
-        current_price = max(1000, current_price)  # Floor price
-
-        timestamp = int(current_date.timestamp() * 1000)
-        data.append([timestamp, current_price])
-
-        current_date += timedelta(days=1)
-
-    print(f"  [OK] Generated {len(data)} sample data points")
-    return data
-
-
-def seed_bitcoin():
-    """Seed database with Bitcoin historical data"""
-
-    # Create tables
     Base.metadata.create_all(bind=engine)
-
     db = SessionLocal()
 
-    # Check if Bitcoin data already exists
-    existing_count = db.query(BitcoinHistoricalData).count()
-    if existing_count > 0:
-        print(f"Database already has {existing_count} Bitcoin records. Skipping seed.")
-        db.close()
-        return
+    try:
+        existing_count = db.query(BitcoinHistoricalData).count()
+        if existing_count > 0 and not refresh:
+            print(
+                f"Database already has {existing_count} Bitcoin records. "
+                f"Skipping seed. Use --refresh to replace them."
+            )
+            return 0
 
-    print("Seeding Bitcoin historical data...")
+        # Fetch and validate BEFORE touching the database, so a failed fetch
+        # never leaves the table empty or half-written.
+        print("Fetching real BTC/EUR daily history from Bitstamp...")
+        prices = fetch_btc_eur_daily()
+        print(f"  [OK] {len(prices)} validated daily prices "
+              f"({min(prices)} -> {max(prices)})")
 
-    # Try to fetch real data from CoinGecko
-    prices = fetch_coingecko_data(days=1825)
+        if refresh and existing_count > 0:
+            print(f"  Removing {existing_count} existing records (--refresh)...")
+            db.query(BitcoinHistoricalData).delete()
+            db.commit()
 
-    # Fallback to sample data if API fails
-    if not prices:
-        prices = generate_sample_data()
+        records = []
+        written = 0
+        for day in sorted(prices):
+            records.append(
+                BitcoinHistoricalData(
+                    data=day,
+                    preco_eur=prices[day],
+                    # Bitstamp's daily OHLC volume is in BTC, not EUR, and the
+                    # portfolio engine does not use it. Left at 0 rather than
+                    # storing a figure in ambiguous units.
+                    volume=0.0,
+                    market_cap=0.0,
+                )
+            )
+            if len(records) >= BATCH_SIZE:
+                db.bulk_save_objects(records)
+                db.commit()
+                written += len(records)
+                records = []
+                print(f"  Inserted {written}/{len(prices)} records...", end="\r")
 
-    print(f"Processing {len(prices)} Bitcoin price records...")
-
-    # Insert data in batches for better performance
-    batch_size = 100
-    records = []
-
-    for i, (timestamp, price) in enumerate(prices):
-        # Convert timestamp to date
-        date = datetime.fromtimestamp(timestamp / 1000).date()
-
-        # Use Portuguese column names: data, preco_eur, volume, market_cap
-        record = BitcoinHistoricalData(
-            data=date,
-            preco_eur=round(price, 2),
-            volume=0.0,  # CoinGecko free tier doesn't provide volume in history
-            market_cap=0.0   # CoinGecko free tier doesn't provide market cap in history
-        )
-        records.append(record)
-
-        # Insert in batches
-        if len(records) >= batch_size:
+        if records:
             db.bulk_save_objects(records)
             db.commit()
-            print(f"  Inserted {i + 1}/{len(prices)} records...", end="\r")
-            records = []
+            written += len(records)
 
-    # Insert remaining records
-    if records:
-        db.bulk_save_objects(records)
-        db.commit()
+        print(f"\n[SUCCESS] Seeded {written} real Bitcoin historical records!")
+        return written
 
-    print(f"\n[SUCCESS] Seeded {len(prices)} Bitcoin historical records!")
-    db.close()
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
-    seed_bitcoin()
+    parser = argparse.ArgumentParser(description="Seed real Bitcoin price history")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Delete existing Bitcoin rows and re-seed from source",
+    )
+    args = parser.parse_args()
+
+    try:
+        seed_bitcoin(refresh=args.refresh)
+    except BitcoinDataError as exc:
+        print(f"\n[FAILED] Could not obtain real Bitcoin data: {exc}", file=sys.stderr)
+        print("Nothing was written to the database.", file=sys.stderr)
+        sys.exit(1)
