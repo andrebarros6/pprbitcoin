@@ -108,22 +108,38 @@ series itself contains no jump greater than 15%, confirming no rebase.
 by matching returns against the CMVM register, which is keyed by `NUM_FUN`
 and is the regulator's own record.
 
-Investing.com lists four BPI PPR funds. Only one has been confirmed; the
-others are unresolved and must each be identified by the same return-matching
-procedure before use:
+All four BPI PPR funds have been identified by return-matching. Note that the
+listing-page titles are outdated but the **historical-data page titles carry
+the current names**, which independently corroborate every match:
 
-| Investing.com title | NAV | AUM | CMVM identity |
-|---|---|---|---|
-| BPI Reforma Valorização | 9.143 | 224m | **BPI Smart Dinâmico** (confirmed, 0.00pp) |
-| BPI Reforma Investimento | 16.136 | 650m | unresolved |
-| BPI Reforma Obrigações | 13.668 | 356m | unresolved |
-| BPI Reforma Global Equities | 7.538 | 51m | unresolved |
+| Listing title (outdated) | ISIN | CMVM identity | 1y Δ | avg Δ |
+|---|---|---|---|---|
+| BPI Reforma Valorização | PTYPJDLM0002 | **BPI Smart Dinâmico** | 0.00pp | 0.10pp |
+| BPI Reforma Investimento | PTYPIQLM0008 | **BPI Smart Moderado** | 0.01pp | 0.06pp |
+| BPI Reforma Obrigações | PTYPIRLM0007 | **BPI Smart Obrigações** | 0.00pp | 0.05pp |
+| BPI Reforma Global Equities | PTYPIEHM0024 | **BPI Smart Ações** | 0.01pp | 0.17pp |
 
-CMVM lists exactly four BPI PPR funds (Ações, Dinâmico, Moderado,
-Obrigações), so the names cannot be matched one-to-one by strategy alone:
-"Reforma Investimento" and "Reforma Global Equities" have no obvious
-counterpart, and "Moderado" has no obvious Investing.com title. Guessing
-from names is exactly the error this section exists to prevent.
+Every match is unambiguous: the runner-up candidate is 10–25x worse in each
+case. Note how badly a name-based guess would have failed — "Reforma
+Investimento" is *Moderado*, and "Reforma Global Equities" is *Ações*, not
+the equity-sounding "Investimento".
+
+BPI Smart Obrigações carries **5,000 daily rows back to 2006-05-12**, the
+deepest PPR series found from any source.
+
+### Investing.com data is current; these BPI series are not
+
+All four BPI series stop at **2026-07-01**, roughly two months stale. This is
+not an Investing.com problem and not a fetch artifact:
+
+- The Investing.com listing page quotes Optimize Ativo at 21.633 and Optimize
+  Agressivo at 17.159, which match our own 2026-08-27 values exactly.
+- Both the JSON API and the rendered 20-row table agree on 2026-07-01 for BPI.
+
+So Investing.com is up to date generally, and these four specific funds
+stopped reporting a NAV after 1 July 2026. Before seeding them, establish
+why -- a merger, a share-class migration, or a genuine reporting gap -- since
+a fund that has stopped publishing may no longer be offered.
 
 ### Scope limitation
 
