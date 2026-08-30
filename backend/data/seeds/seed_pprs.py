@@ -6,6 +6,8 @@ Sources:
     (services/ppr_history.py), in EUR per unit.
   - IMGA's chart API for IMGA and EuroBic funds (services/imga_history.py),
     as a performance index rebased to 10,000 rather than a unit value.
+  - Casa de Investimentos' chart API (services/casa_history.py), as a
+    performance index rebased to 100.
   - Investing.com for funds with no reachable manager feed
     (services/investing_history.py), in EUR per unit. Opt-in via
     --with-investing because it needs a visible browser and so cannot run
@@ -41,6 +43,10 @@ from services.ppr_history import fetch_all_funds, PPRDataError  # noqa: E402
 from services.imga_history import (  # noqa: E402
     fetch_all_funds as fetch_imga_funds,
     IMGADataError,
+)
+from services.casa_history import (  # noqa: E402
+    fetch_all_funds as fetch_casa_funds,
+    CasaDataError,
 )
 from services.investing_history import (  # noqa: E402
     fetch_all_funds as fetch_investing_funds,
@@ -83,6 +89,9 @@ def seed_pprs(refresh: bool = False, with_investing: bool = False) -> int:
         print("Fetching real PPR daily series (IMGA / EuroBic)...")
         funds = funds + fetch_imga_funds()
 
+        print("Fetching real PPR daily series (Casa de Investimentos)...")
+        funds = funds + fetch_casa_funds()
+
         if with_investing:
             print("Fetching real PPR daily NAV (Investing.com, opens a browser)...")
             funds = funds + fetch_investing_funds()
@@ -95,8 +104,10 @@ def seed_pprs(refresh: bool = False, with_investing: bool = False) -> int:
 
         total_written = 0
         for fund in funds:
-            # IMGA/EuroBic series are an index rebased to 10,000, not a unit
-            # value in EUR. Marking the category keeps that visible downstream.
+            # Some sources publish a rebased performance index rather than a
+            # unit value in EUR -- IMGA/EuroBic to 10,000, Casa to 100. Those
+            # funds carry no ISIN here, so that is the marker. Tagging the
+            # category keeps the distinction visible downstream.
             categoria = fund["categoria"]
             if "isin" not in fund:
                 categoria = f"{categoria} (índice)"
@@ -170,7 +181,7 @@ if __name__ == "__main__":
 
     try:
         seed_pprs(refresh=args.refresh, with_investing=args.with_investing)
-    except (PPRDataError, IMGADataError, InvestingDataError) as exc:
+    except (PPRDataError, IMGADataError, CasaDataError, InvestingDataError) as exc:
         print(f"\n[FAILED] Could not obtain real PPR data: {exc}", file=sys.stderr)
         print("Nothing was written to the database.", file=sys.stderr)
         sys.exit(1)

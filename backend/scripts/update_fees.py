@@ -25,12 +25,32 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import SessionLocal  # noqa: E402
 from models.ppr import PPR  # noqa: E402
+from services.casa_history import CASA_FUNDS  # noqa: E402
 from services.cmvm_reference import (  # noqa: E402
     CMVMDataError,
     fetch_ppr_register,
     match_fund,
     tec_by_fund,
 )
+from services.investing_history import INVESTING_FUNDS  # noqa: E402
+
+
+def _verified_identities() -> dict:
+    """
+    Map our fund name -> CMVM name, for funds the regulator lists under a
+    different name.
+
+    Some managers market a fund under a name the register does not use --
+    Casa's "Casa Global Value PPR Founders" is registered as "Save & Grow
+    PPR/OICVM". Name matching cannot bridge that and correctly refuses to
+    guess, so the fetchers record the identity they established by matching
+    returns, and it is reused here.
+    """
+    return {
+        fund["nome"]: fund["cmvm_name"]
+        for fund in list(CASA_FUNDS) + list(INVESTING_FUNDS)
+        if fund.get("cmvm_name")
+    }
 
 
 def update_fees(dry_run: bool = False) -> int:
@@ -45,12 +65,17 @@ def update_fees(dry_run: bool = False) -> int:
     tec = tec_by_fund(register)
     print(f"  {len(register)} funds, {len(tec)} with a published TEC")
 
+    identities = _verified_identities()
+
     db = SessionLocal()
     updated = unmatched = unchanged = 0
 
     try:
         for ppr in db.query(PPR).order_by(PPR.nome).all():
-            match = match_fund(ppr.nome, tec)
+            # Prefer an identity already confirmed by return matching; fall
+            # back to matching on the name.
+            override = identities.get(ppr.nome)
+            match = match_fund(override or ppr.nome, tec)
             if match is None:
                 print(f"  [SKIP] {ppr.nome}: no unambiguous CMVM match")
                 unmatched += 1

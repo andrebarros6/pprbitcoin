@@ -23,6 +23,7 @@ import pandas as pd  # noqa: E402
 from database import SessionLocal  # noqa: E402
 from models.bitcoin import BitcoinHistoricalData  # noqa: E402
 from models.ppr import PPR, PPRHistoricalData  # noqa: E402
+from services.casa_history import CASA_FUNDS  # noqa: E402
 from services.cmvm_reference import (  # noqa: E402
     CMVMDataError,
     fetch_ppr_register,
@@ -31,6 +32,16 @@ from services.cmvm_reference import (  # noqa: E402
     returns_by_fund,
     tec_by_fund,
 )
+from services.investing_history import INVESTING_FUNDS  # noqa: E402
+
+# Funds the CMVM register lists under a different name than the manager
+# markets them by. The identity was established by matching returns (see each
+# fetcher's cmvm_name), so name matching is bypassed for these.
+CMVM_IDENTITIES = {
+    fund["nome"]: fund["cmvm_name"]
+    for fund in list(CASA_FUNDS) + list(INVESTING_FUNDS)
+    if fund.get("cmvm_name")
+}
 
 APFIPP_URL = "https://www.apfipp.pt/pt/estatisticas/rendibilidades/oic-mobiliario/"
 # APFIPP's table is published with an as-of date in its first column header.
@@ -215,7 +226,8 @@ def main() -> int:
                 if not series:
                     continue
 
-                match = match_fund(ppr.nome, cmvm_returns)
+                lookup = CMVM_IDENTITIES.get(ppr.nome, ppr.nome)
+                match = match_fund(lookup, cmvm_returns)
                 print(f"\n  {ppr.nome}")
                 if match is None:
                     # Not a failure: the register may legitimately not list a
