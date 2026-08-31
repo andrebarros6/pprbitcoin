@@ -54,6 +54,23 @@ class PortfolioCalculationRequest(BaseModel):
         default="quarterly",
         description="Portfolio rebalancing frequency"
     )
+    contribution_amount: Decimal = Field(
+        default=Decimal("0"),
+        ge=0,
+        description="Recurring contribution amount in EUR (0 = lump sum only)"
+    )
+    contribution_frequency: Literal["none", "monthly", "quarterly"] = Field(
+        default="none",
+        description="How often the recurring contribution is invested"
+    )
+
+    @property
+    def has_contributions(self) -> bool:
+        """True when the portfolio receives money after the initial investment."""
+        return (
+            self.contribution_amount > 0
+            and self.contribution_frequency != "none"
+        )
 
     @field_validator("ppr_allocations")
     @classmethod
@@ -105,9 +122,42 @@ class PerformanceMetrics(BaseModel):
     Portfolio performance metrics
     """
     total_return: Decimal = Field(..., description="Total return in EUR")
-    total_return_percentage: Decimal = Field(..., description="Total return as percentage")
+    total_return_percentage: Decimal = Field(
+        ...,
+        description=(
+            "Total return as a percentage of capital invested. With recurring "
+            "contributions this is measured against total invested capital, "
+            "not the initial investment alone."
+        ),
+    )
     annualized_return: Decimal = Field(..., description="Annualized return percentage")
-    cagr: Decimal = Field(..., description="Compound Annual Growth Rate")
+    cagr: Decimal = Field(
+        ...,
+        description=(
+            "Compound Annual Growth Rate. Only meaningful for a lump-sum "
+            "investment; when contributions are present prefer irr."
+        ),
+    )
+    invested_capital: Decimal = Field(
+        ...,
+        description="Total cash paid in (initial investment plus all contributions)",
+    )
+    irr: Optional[Decimal] = Field(
+        default=None,
+        description=(
+            "Money-weighted annualised return (XIRR) as a percentage. Populated "
+            "whenever the cashflows permit a solution; this is the correct "
+            "headline return when contributions are present."
+        ),
+    )
+    is_money_weighted: bool = Field(
+        default=False,
+        description=(
+            "True when the portfolio has recurring contributions, meaning cagr "
+            "and total_return_percentage are time-weighted approximations and "
+            "irr is the figure to display."
+        ),
+    )
     volatility: Decimal = Field(..., description="Annualized volatility (standard deviation)")
     sharpe_ratio: Decimal = Field(..., description="Sharpe ratio (assuming 0% risk-free rate)")
     sortino_ratio: Decimal = Field(..., description="Sortino ratio (downside deviation)")
@@ -128,6 +178,10 @@ class HistoricalDataPoint(BaseModel):
     portfolio_value: Decimal = Field(..., description="Total portfolio value in EUR")
     ppr_value: Decimal = Field(..., description="PPR component value in EUR")
     bitcoin_value: Decimal = Field(..., description="Bitcoin component value in EUR")
+    invested_capital: Decimal = Field(
+        default=Decimal("0"),
+        description="Cumulative cash paid in up to and including this date",
+    )
     total_return: Decimal = Field(..., description="Cumulative return percentage")
     drawdown: Decimal = Field(..., description="Current drawdown from peak")
 
@@ -167,6 +221,34 @@ class PortfolioCalculationResponse(BaseModel):
         ...,
         description="Date when calculation was performed"
     )
+    without_bitcoin: Optional["PortfolioReference"] = Field(
+        default=None,
+        description=(
+            "The same PPR portfolio, same dates, same contributions, but with "
+            "no Bitcoin -- the counterfactual that answers 'what did adding "
+            "Bitcoin actually change?'. Null when the portfolio holds no "
+            "Bitcoin, since it would merely repeat the main result."
+        ),
+    )
+
+
+class PortfolioReference(BaseModel):
+    """
+    A comparison portfolio reported alongside the main result.
+
+    Deliberately carries only the headline numbers and the value series, not
+    the full response -- it exists to be drawn as a second line and summarised
+    in a sentence, not explored.
+    """
+    label: str = Field(..., description="Human-readable name for the comparison")
+    metrics: "PerformanceMetrics" = Field(..., description="Metrics for the comparison")
+    historical_data: List["HistoricalDataPoint"] = Field(
+        ...,
+        description="Value series for the comparison, aligned to the main result",
+    )
+
+
+PortfolioCalculationResponse.model_rebuild()
 
 
 class PortfolioComparisonResponse(BaseModel):

@@ -44,7 +44,7 @@ old.
 
 - **Source:** Optimize Investment Partners' published daily NAV series, read
   from the chart endpoint on their public fund pages.
-- **Coverage:** 4 funds, 2008-09-25 to present, 15,196 NAV observations.
+- **Coverage:** 4 funds, 2008-09-25 to present, ~15,200 NAV observations.
 - **Fetcher:** `services/ppr_history.py`
 - **Seed:** `python data/seeds/seed_pprs.py [--refresh]`
 
@@ -70,9 +70,10 @@ This is a real **observed daily series**, not interpolation between annual
 figures. That distinction matters: volatility, Sharpe, Sortino and maximum
 drawdown are only meaningful when computed from the real path.
 
-`taxa_gestao` is deliberately left NULL. The published NAV is already net of
-management fees, and the fee is not machine-readable from the source; storing
-a guessed figure would misstate a real product's costs.
+`taxa_gestao` is not taken from this source: the published NAV is already net
+of fees and the fee is not machine-readable here. It is populated separately
+by `scripts/update_fees.py` from the CMVM register's Taxa de Encargos
+Correntes, and is never guessed.
 
 ### Investing.com fund naming
 
@@ -201,16 +202,72 @@ Two observations worth carrying forward:
   performance are not strictly the same strategy. Any chart spanning
   2026-07-03 should say so.
 
+## Casa de Investimentos
+
+Casa Global Value PPR Founders (EUR 374m, #3 by AUM) is served by an open
+JSON API backed by an Excel workbook:
+
+```
+casa-de-investimentos-api.vercel.app/api/get-excel-data
+    ?worksheet=grafico_founders&range=B5:D50000
+```
+
+No browser, key or session required, so `services/casa_history.py` can run
+unattended. **1,527 daily points from 2020-10-01**, as an index rebased to
+100 rather than a unit value in EUR.
+
+Two traps worth recording:
+
+- **The manager's name is not the register's name.** Casa markets this as
+  "Casa Global Value PPR/OICVM Founders"; the CMVM registers it as **"Save &
+  Grow PPR/OICVM"** (NUM_FUN 1637). Name matching cannot bridge that and
+  correctly refuses to guess, so the fetcher records the identity confirmed
+  by return matching in `cmvm_name`, and the fee and verification scripts
+  reuse it.
+- **Column C is not the fund.** Each worksheet returns date, fund and
+  benchmark. Column C's returns miss CMVM by ~2.15pp; column B matches to
+  0.13pp (1y 5.46 vs 5.46, 3y 20.25 vs 20.29).
+
+## Alves Ribeiro: Investing.com as a last-resort source
+
+Alves Ribeiro PPR (EUR 372m, #4 by AUM) has no usable manager feed:
+
+- `investalvesribeiro.pt` does not resolve.
+- Banco Invest (same group) exposes a REST fund API at
+  `bancoinvest.pt/restapi/GetFundosGestaoList_ByFilters` that returns the
+  fund with a **current** NAV and dated quote, but no historical series and
+  no per-fund history endpoint. Useful for a freshness cross-check, useless
+  for backtesting.
+
+`services/investing_history.py` therefore pulls it from Investing.com:
+**5,000 daily NAV points, 2006-03-13 to present**, in real EUR. Verified
+against CMVM at 2025-12-31 across five horizons -- 1y 4.77 vs 4.77 exactly,
+10y 4.74 vs 4.67, mean deviation 0.06pp.
+
+The cost is that this fetcher **cannot run headless or on a server**, so it
+is a manual periodic refresh rather than part of the scheduler. It is opt-in:
+
+```bash
+python data/seeds/seed_pprs.py --refresh --with-investing
+```
+
+Cloudflare rate-limits rapid successive requests, so the fetcher re-warms on
+the fund page and backs off between attempts. A blocked request raises rather
+than seeding a partial series.
+
 ### Scope limitation
 
-The catalogue covers two fund managers, roughly 12% of the PPR market by
-assets under management. Extending coverage means a separate integration per
+The catalogue covers four fund managers, roughly 26% of the PPR market by
+assets under management, including 5 of the 10 largest PPR funds. Extending coverage means a separate integration per
 manager. The app should not imply it compares the whole Portuguese PPR market.
 
-BPI is the largest remaining gap at ~23% of the market across three top-ten
-funds, but its site is an OutSystems app with no reachable JSON endpoint and
-`bpigestaodeativos.pt` does not resolve. Caixa (~8%), Casa de Investimentos
-(~7%) and Alves Ribeiro (~7%) are unprobed.
+Remaining gaps, in order of size:
+
+| Manager | Share | Status |
+|---|---|---|
+| BPI | ~23% | Funds identified, but renamed to "BPI SMART" on 2026-07-03 and no live feed found for the new names |
+| Caixa | ~8% | CGD's quotes page is JS-rendered with no reachable JSON endpoint |
+| Casa de Investimentos | — | **Seeded.** See below. |
 
 ### Market context and fund ranking
 

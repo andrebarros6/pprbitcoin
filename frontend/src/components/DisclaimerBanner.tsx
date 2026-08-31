@@ -28,18 +28,18 @@ const DisclaimerBanner: React.FC = () => {
             tomar decisões de investimento.
           </p>
           <p className="mt-2 text-sm text-yellow-700">
-            <strong>Dados:</strong> séries diárias reais publicadas pelas sociedades gestoras
-            (Optimize Investment Partners e IM Gestão de Ativos) e cotações BTC/EUR da Bitstamp.
-            As rendibilidades implícitas são verificadas face aos valores publicados pela APFIPP.
-            Os fundos marcados como “índice” são publicados pela gestora como índice de
-            desempenho (base 10 000), não como valor da unidade de participação; as
-            rendibilidades e métricas de risco não são afetadas.
+            <strong>Dados:</strong> séries diárias reais de fundos PPR e cotações BTC/EUR da
+            Bitstamp. As rendibilidades implícitas são verificadas face aos valores publicados
+            pela APFIPP e pelo registo da CMVM. Os fundos marcados como “índice” são publicados
+            pela gestora como índice de desempenho, não como valor da unidade de participação;
+            as rendibilidades e métricas de risco não são afetadas.
           </p>
           <p className="mt-2 text-sm text-yellow-700">
-            <strong>Cobertura:</strong> esta ferramenta compara 10 fundos PPR de duas
-            sociedades gestoras, o que representa cerca de 12% do mercado por ativos sob gestão.
-            Não representa o mercado português de PPR no seu conjunto — a CMVM lista 167 fundos
-            PPR. A rendibilidade passada não é indicativa de resultados futuros.
+            <strong>Cobertura:</strong> esta ferramenta compara 12 fundos PPR de quatro
+            sociedades gestoras, o que representa cerca de 26% do mercado por ativos sob gestão
+            e inclui 5 dos 10 maiores fundos PPR. Não representa o mercado português de PPR no
+            seu conjunto — a CMVM lista 167 fundos PPR. A rendibilidade passada não é indicativa
+            de resultados futuros.
           </p>
         </div>
       </div>

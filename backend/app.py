@@ -17,6 +17,45 @@ from utils.rate_limit import limiter
 logger = logging.getLogger(__name__)
 
 
+def _init_sentry() -> bool:
+    """
+    Start error reporting, if a DSN is configured.
+
+    Runs before the app is created so that failures during startup -- a bad
+    DATABASE_URL, a migration that will not apply -- are reported rather than
+    disappearing into the platform log.
+
+    Returns:
+        True if Sentry was initialised.
+    """
+    if not settings.SENTRY_DSN:
+        return False
+
+    try:
+        import sentry_sdk
+    except ImportError:
+        # The package is in requirements, but a missing optional dependency
+        # must never stop the API from serving.
+        logger.warning("SENTRY_DSN is set but sentry-sdk is not installed")
+        return False
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        release=settings.API_VERSION,
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+        # Request bodies carry portfolio parameters, not credentials, but
+        # there is no reason to ship them to a third party to debug a stack
+        # trace. send_default_pii stays off for the same reason: no IPs.
+        max_request_body_size="never",
+        send_default_pii=False,
+    )
+    return True
+
+
+SENTRY_ENABLED = _init_sentry()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -26,6 +65,13 @@ async def lifespan(app: FastAPI):
     print("[START] Starting PPR Bitcoin API...")
     init_db()
     print("[OK] Database initialized")
+
+    # Say so either way. Silent monitoring that is not actually reporting is
+    # worse than none, because it is trusted.
+    if SENTRY_ENABLED:
+        print(f"[OK] Sentry error reporting active ({settings.ENVIRONMENT})")
+    else:
+        print("[..] Sentry disabled (no SENTRY_DSN set)")
 
     # The scheduler keeps Bitcoin and PPR data current. It is opt-in because
     # running it in every web instance would duplicate the refresh; with more

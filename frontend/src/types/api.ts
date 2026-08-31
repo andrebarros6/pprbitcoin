@@ -21,6 +21,8 @@ export interface PortfolioRequest {
   start_date: string;
   end_date?: string;
   rebalancing_frequency: 'none' | 'monthly' | 'quarterly' | 'yearly';
+  contribution_amount?: number;  // Recurring contribution in EUR (0 = lump sum)
+  contribution_frequency?: 'none' | 'monthly' | 'quarterly';
 }
 
 export interface PortfolioMetrics {
@@ -38,6 +40,13 @@ export interface PortfolioMetrics {
   worst_month: string;  // Decimal from backend
   positive_months: number;
   total_months: number;
+  invested_capital: string;  // Decimal from backend: total cash paid in
+  // Money-weighted annualised return (XIRR). Null when the cashflows admit
+  // no solution. This is the figure to show once contributions exist.
+  irr: string | null;
+  // True when contributions are present, meaning cagr is an approximation
+  // and irr is the correct headline return.
+  is_money_weighted: boolean;
 }
 
 export interface HistoricalDataPoint {
@@ -45,6 +54,7 @@ export interface HistoricalDataPoint {
   portfolio_value: string;  // Decimal from backend (renamed from 'value')
   ppr_value: string;  // Decimal from backend
   bitcoin_value: string;  // Decimal from backend
+  invested_capital: string;  // Decimal from backend: cash paid in by this date
   total_return: string;  // Decimal from backend
   drawdown: string;  // Decimal from backend
 }
@@ -53,12 +63,11 @@ export interface PortfolioResponse {
   portfolio_config: PortfolioRequest;
   metrics: PortfolioMetrics;
   historical_data: HistoricalDataPoint[];  // Renamed from time_series
-  allocation_breakdown: Array<{
-    asset_name: string;
-    allocation_percentage: string;  // Decimal from backend
-    final_value: string;  // Decimal from backend
-    contribution_to_return: string;  // Decimal from backend
-  }>;
+  // The backend also returns allocation_breakdown. It is deliberately not
+  // declared here: nothing renders it, and the previous declaration had
+  // drifted from the API (asset_name/final_value where the backend sends
+  // ppr_name/current_value) without anything catching it. Declare it from
+  // the real response shape when a component actually needs it.
   calculation_date: string;  // Date from backend
 }
 

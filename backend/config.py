@@ -33,8 +33,15 @@ class Settings(BaseSettings):
     # running more than one instance, or the refresh runs once per instance.
     ENABLE_SCHEDULER: bool = False
 
-    # Sentry (Error Monitoring)
+    # Sentry (Error Monitoring). Blank disables it entirely, so local runs
+    # and CI never report anywhere.
     SENTRY_DSN: str = ""
+    # Tags events so production noise is distinguishable from a staging run.
+    ENVIRONMENT: str = "development"
+    # Fraction of requests traced for performance. Errors are always sent;
+    # this only governs timing spans, which are the expensive part of the
+    # free-tier quota.
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.0
 
     # Timezone
     TZ: str = "Europe/Lisbon"

@@ -30,7 +30,15 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
     return Number(value).toFixed(2);
   };
 
-  const getBetterClass = (val1: string, val2: string, higherIsBetter: boolean = true) => {
+  const getBetterClass = (
+    val1: string,
+    val2: string,
+    higherIsBetter: boolean | null = true
+  ) => {
+    // null means neither column wins -- used for figures that are equal by
+    // construction, such as the capital paid into both plans.
+    if (higherIsBetter === null) return '';
+
     const num1 = Number(val1);
     const num2 = Number(val2);
 
@@ -44,7 +52,24 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
     return '';
   };
 
+  // With recurring contributions, CAGR compounds a starting sum that no
+  // longer describes the money invested, so the money-weighted return (TIR)
+  // is shown instead.
+  const hasContributions =
+    metrics100PPR.is_money_weighted || metricsPPRBTC.is_money_weighted;
+
   const metrics = [
+    ...(hasContributions
+      ? [
+          {
+            label: 'Total Investido',
+            ppr: formatCurrency(metrics100PPR.invested_capital),
+            btc: formatCurrency(metricsPPRBTC.invested_capital),
+            higherIsBetter: null,
+            tooltip: 'Investimento inicial mais todas as contribuições',
+          },
+        ]
+      : []),
     {
       label: 'Valor Final',
       ppr: formatCurrency(metrics100PPR.final_value),
@@ -64,15 +89,28 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
       ppr: formatPercentage(metrics100PPR.total_return_percentage),
       btc: formatPercentage(metricsPPRBTC.total_return_percentage),
       higherIsBetter: true,
-      tooltip: 'Retorno percentual do investimento',
+      tooltip: hasContributions
+        ? 'Ganho em percentagem do total investido (inicial + contribuições)'
+        : 'Retorno percentual do investimento',
     },
-    {
-      label: 'CAGR',
-      ppr: formatPercentage(metrics100PPR.cagr),
-      btc: formatPercentage(metricsPPRBTC.cagr),
-      higherIsBetter: true,
-      tooltip: 'Taxa de crescimento anual composta',
-    },
+    hasContributions
+      ? {
+          label: 'Retorno anualizado (TIR)',
+          ppr: formatPercentage(metrics100PPR.irr ?? metrics100PPR.cagr),
+          btc: formatPercentage(metricsPPRBTC.irr ?? metricsPPRBTC.cagr),
+          higherIsBetter: true,
+          tooltip:
+            'Taxa interna de rentabilidade: retorno anual do seu dinheiro, ' +
+            'tendo em conta que cada contribuição esteve investida durante ' +
+            'um período diferente',
+        }
+      : {
+          label: 'CAGR',
+          ppr: formatPercentage(metrics100PPR.cagr),
+          btc: formatPercentage(metricsPPRBTC.cagr),
+          higherIsBetter: true,
+          tooltip: 'Taxa de crescimento anual composta',
+        },
     {
       label: 'Volatilidade',
       ppr: formatPercentage(metrics100PPR.volatility),
@@ -175,7 +213,16 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
             <strong>Valores em verde</strong> indicam o melhor desempenho naquela métrica
           </li>
           <li>
-            <strong>CAGR:</strong> Taxa de crescimento anual. Quanto maior, melhor.
+            {hasContributions ? (
+              <>
+                <strong>TIR:</strong> Retorno anual do seu dinheiro, ajustado ao
+                tempo que cada contribuição esteve investida. Quanto maior, melhor.
+              </>
+            ) : (
+              <>
+                <strong>CAGR:</strong> Taxa de crescimento anual. Quanto maior, melhor.
+              </>
+            )}
           </li>
           <li>
             <strong>Sharpe/Sortino:</strong> Retorno ajustado ao risco. Valores &gt; 1 são bons, &gt; 2 são excelentes.

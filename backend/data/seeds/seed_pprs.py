@@ -6,8 +6,14 @@ Sources:
     (services/ppr_history.py), in EUR per unit.
   - IMGA's chart API for IMGA and EuroBic funds (services/imga_history.py),
     as a performance index rebased to 10,000 rather than a unit value.
+  - Casa de Investimentos' chart API (services/casa_history.py), as a
+    performance index rebased to 100.
+  - Investing.com for funds with no reachable manager feed
+    (services/investing_history.py), in EUR per unit. Opt-in via
+    --with-investing because it needs a visible browser and so cannot run
+    unattended; see that module's docstring.
 
-Both are real observed daily series. The index-based funds are marked in
+All are real observed daily series. The index-based funds are marked in
 `categoria` so the UI never presents an index as a unit price; returns and
 risk metrics are unaffected because they depend only on ratios between
 points.
@@ -19,9 +25,10 @@ invented performance against real, named, regulated funds is not acceptable,
 so this script now seeds only funds whose real daily NAV it can actually
 retrieve, and exits non-zero otherwise.
 
-taxa_gestao is intentionally left NULL: the published NAV is already net of
-management fees, and the fee is not machine-readable from the source. Storing
-a guessed fee would misstate a real product's costs.
+taxa_gestao is left NULL here and populated separately by
+scripts/update_fees.py from the CMVM register, which publishes the Taxa de
+Encargos Correntes. It is never guessed: the NAV is already net of fees, so a
+made-up figure would misstate a real product's costs.
 """
 import argparse
 import sys
@@ -37,17 +44,27 @@ from services.imga_history import (  # noqa: E402
     fetch_all_funds as fetch_imga_funds,
     IMGADataError,
 )
+from services.casa_history import (  # noqa: E402
+    fetch_all_funds as fetch_casa_funds,
+    CasaDataError,
+)
+from services.investing_history import (  # noqa: E402
+    fetch_all_funds as fetch_investing_funds,
+    InvestingDataError,
+)
 
 BATCH_SIZE = 500
 
 
-def seed_pprs(refresh: bool = False) -> int:
+def seed_pprs(refresh: bool = False, with_investing: bool = False) -> int:
     """
     Seed PPR funds and their real daily NAV history.
 
     Args:
         refresh: If True, delete existing PPRs and re-seed. Required to
                  replace the synthetic funds seeded by the old version.
+        with_investing: Also seed funds sourced from Investing.com. Off by
+                 default because that fetcher opens a visible browser window.
 
     Returns:
         Number of NAV records written.
@@ -72,6 +89,13 @@ def seed_pprs(refresh: bool = False) -> int:
         print("Fetching real PPR daily series (IMGA / EuroBic)...")
         funds = funds + fetch_imga_funds()
 
+        print("Fetching real PPR daily series (Casa de Investimentos)...")
+        funds = funds + fetch_casa_funds()
+
+        if with_investing:
+            print("Fetching real PPR daily NAV (Investing.com, opens a browser)...")
+            funds = funds + fetch_investing_funds()
+
         if refresh and existing_count > 0:
             print(f"  Removing {existing_count} existing PPRs and their history...")
             db.query(PPRHistoricalData).delete()
@@ -80,8 +104,10 @@ def seed_pprs(refresh: bool = False) -> int:
 
         total_written = 0
         for fund in funds:
-            # IMGA/EuroBic series are an index rebased to 10,000, not a unit
-            # value in EUR. Marking the category keeps that visible downstream.
+            # Some sources publish a rebased performance index rather than a
+            # unit value in EUR -- IMGA/EuroBic to 10,000, Casa to 100. Those
+            # funds carry no ISIN here, so that is the marker. Tagging the
+            # category keeps the distinction visible downstream.
             categoria = fund["categoria"]
             if "isin" not in fund:
                 categoria = f"{categoria} (índice)"
@@ -143,11 +169,19 @@ if __name__ == "__main__":
         action="store_true",
         help="Delete existing PPRs and re-seed from source",
     )
+    parser.add_argument(
+        "--with-investing",
+        action="store_true",
+        help=(
+            "Also seed funds sourced from Investing.com. Opens a visible "
+            "browser window, so it cannot run unattended or on a server."
+        ),
+    )
     args = parser.parse_args()
 
     try:
-        seed_pprs(refresh=args.refresh)
-    except (PPRDataError, IMGADataError) as exc:
+        seed_pprs(refresh=args.refresh, with_investing=args.with_investing)
+    except (PPRDataError, IMGADataError, CasaDataError, InvestingDataError) as exc:
         print(f"\n[FAILED] Could not obtain real PPR data: {exc}", file=sys.stderr)
         print("Nothing was written to the database.", file=sys.stderr)
         sys.exit(1)
