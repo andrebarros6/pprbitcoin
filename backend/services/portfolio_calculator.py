@@ -9,6 +9,7 @@ from typing import List, Dict, Tuple, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
+from utils.irr import xirr
 from models.ppr import PPR, PPRHistoricalData
 from models.bitcoin import BitcoinHistoricalData
 from models.portfolio import (
@@ -310,8 +311,33 @@ class PortfolioCalculator:
         current_units = initial_units.copy()
         last_rebalance_date = initial_date
 
+        # Contributions are cash paid in after the start, so the initial
+        # investment is the first entry in the invested-capital running total
+        # and the first cashflow for the IRR.
+        contribution_amount = float(request.contribution_amount)
+        contribution_frequency = request.contribution_frequency
+        invested_capital = initial_investment
+        last_contribution_date = initial_date
+        cashflows = [(initial_date.date(), -initial_investment)]
+
         # Calculate portfolio value for each date
         for current_date in dates:
+            # Buy in before valuing, so the contribution is reflected on the
+            # day it is made rather than a day late.
+            if current_date != initial_date and self._should_contribute(
+                current_date, last_contribution_date, contribution_frequency
+            ):
+                current_units = self._invest_contribution(
+                    aligned_data,
+                    current_date,
+                    current_units,
+                    request,
+                    contribution_amount,
+                )
+                invested_capital += contribution_amount
+                last_contribution_date = current_date
+                cashflows.append((current_date.date(), -contribution_amount))
+
             # Check if rebalancing is needed
             if self._should_rebalance(
                 current_date, last_rebalance_date, request.rebalancing_frequency
@@ -344,10 +370,91 @@ class PortfolioCalculator:
                     "ppr_value": ppr_value,
                     "bitcoin_value": bitcoin_value,
                     "total_value": total_value,
+                    "invested_capital": invested_capital,
                 }
             )
 
-        return pd.DataFrame(portfolio_values)
+        # The IRR treats the closing portfolio value as though it were
+        # withdrawn on the final date, which is what makes the paid-in
+        # cashflows solvable for a rate.
+        if portfolio_values:
+            cashflows.append(
+                (portfolio_values[-1]["date"], portfolio_values[-1]["total_value"])
+            )
+
+        # Carried on the frame rather than on self, so that calculating a
+        # comparison portfolio on the same calculator cannot overwrite the
+        # main result's cashflows.
+        frame = pd.DataFrame(portfolio_values)
+        frame.attrs["cashflows"] = cashflows
+        return frame
+
+    def _should_contribute(
+        self, current_date: datetime, last_contribution: datetime, frequency: str
+    ) -> bool:
+        """
+        Check if a recurring contribution falls due on this date.
+
+        Args:
+            current_date: Current date
+            last_contribution: Date of the previous contribution
+            frequency: Contribution frequency
+
+        Returns:
+            True if a contribution should be invested
+        """
+        if frequency == "none":
+            return False
+
+        time_diff = (current_date - last_contribution).days
+
+        if frequency == "monthly":
+            return time_diff >= 30
+        elif frequency == "quarterly":
+            return time_diff >= 90
+
+        return False
+
+    def _invest_contribution(
+        self,
+        aligned_data: pd.DataFrame,
+        contribution_date: datetime,
+        current_units: Dict,
+        request: PortfolioCalculationRequest,
+        amount: float,
+    ) -> Dict:
+        """
+        Buy units with a recurring contribution at target allocations.
+
+        Unlike rebalancing this only adds units -- it never sells to correct
+        drift, which is what a saver paying into a plan actually does.
+
+        Args:
+            aligned_data: Aligned historical data
+            contribution_date: Date the money is invested
+            current_units: Units held before the contribution
+            request: Portfolio request with target allocations
+            amount: Cash being invested
+
+        Returns:
+            Units held after the contribution
+        """
+        new_units = dict(current_units)
+        bitcoin_pct = float(request.bitcoin_percentage) / 100
+
+        for allocation in request.ppr_allocations:
+            col_name = f"ppr_{allocation.ppr_id}"
+            allocation_pct = float(allocation.allocation_percentage) / 100
+            price = float(aligned_data.loc[contribution_date, col_name])
+            if price > 0:
+                new_units[col_name] += (amount * allocation_pct) / price
+
+        if "bitcoin_price" in aligned_data.columns and bitcoin_pct > 0:
+            bitcoin_price = float(aligned_data.loc[contribution_date, "bitcoin_price"])
+            if bitcoin_price > 0:
+                new_units["bitcoin"] += (amount * bitcoin_pct) / bitcoin_price
+
+        return new_units
 
     def _should_rebalance(
         self, current_date: datetime, last_rebalance: datetime, frequency: str
@@ -445,19 +552,56 @@ class PortfolioCalculator:
         final_value = portfolio_values.iloc[-1]["total_value"]
         values = portfolio_values["total_value"].values
 
-        # Total returns
-        total_return = final_value - initial_value
-        total_return_pct = (total_return / initial_value) * 100
+        # Money paid in over the whole period. Without contributions this is
+        # just the initial investment, so the lump-sum maths is unchanged.
+        if "invested_capital" in portfolio_values.columns:
+            invested_capital = float(portfolio_values.iloc[-1]["invested_capital"])
+        else:
+            invested_capital = initial_value
+        has_contributions = invested_capital > initial_value + 1e-9
 
-        # Calculate returns series
-        returns = pd.Series(values).pct_change().dropna()
+        # Total returns, measured against everything paid in. Dividing by the
+        # initial investment alone would count contributions as though they
+        # were profit.
+        total_return = final_value - invested_capital
+        total_return_pct = (total_return / invested_capital) * 100
+
+        # Calculate returns series. Contributions add cash to the portfolio
+        # without being a gain, so they are removed before measuring the
+        # period-on-period return -- otherwise every payday looks like a rally
+        # and volatility, Sharpe and drawdown are all overstated.
+        value_series = pd.Series(values, dtype="float64")
+        if has_contributions:
+            capital_series = pd.Series(
+                portfolio_values["invested_capital"].values, dtype="float64"
+            )
+            cash_added = capital_series.diff().fillna(0.0)
+            returns = (
+                (value_series - cash_added) / value_series.shift(1) - 1.0
+            ).replace([np.inf, -np.inf], np.nan).dropna()
+        else:
+            returns = value_series.pct_change().dropna()
 
         # Number of periods
         num_days = len(portfolio_values)
         num_years = num_days / 365.25
 
-        # CAGR
-        cagr = (((final_value / initial_value) ** (1 / num_years)) - 1) * 100 if num_years > 0 else 0
+        # Money-weighted return. This is the correct headline figure once
+        # contributions exist, because it accounts for how long each euro was
+        # actually invested.
+        irr_rate = xirr(portfolio_values.attrs.get("cashflows", []))
+        irr_pct = round(irr_rate * 100, 2) if irr_rate is not None else None
+
+        # CAGR compounds a single starting sum, so it is only meaningful for a
+        # lump sum. With contributions it is reported as the time-weighted
+        # growth implied by the IRR rather than a ratio of two numbers that no
+        # longer describe the same pot of money.
+        if has_contributions:
+            cagr = irr_pct if irr_pct is not None else 0
+        elif num_years > 0:
+            cagr = (((final_value / initial_value) ** (1 / num_years)) - 1) * 100
+        else:
+            cagr = 0
 
         # Annualized return
         annualized_return = cagr
@@ -520,6 +664,9 @@ class PortfolioCalculator:
             max_drawdown=Decimal(str(round(max_drawdown, 2))),
             max_drawdown_duration_days=int(max_dd_duration),
             final_value=Decimal(str(round(final_value, 2))),
+            invested_capital=Decimal(str(round(invested_capital, 2))),
+            irr=Decimal(str(irr_pct)) if irr_pct is not None else None,
+            is_money_weighted=has_contributions,
             best_month=Decimal(str(round(best_month, 2))),
             worst_month=Decimal(str(round(worst_month, 2))),
             positive_months=int(positive_months),
@@ -539,19 +686,41 @@ class PortfolioCalculator:
             List of historical data points
         """
         initial_value = portfolio_values.iloc[0]["total_value"]
-        peak_value = initial_value
+        # Peaks are tracked as value per euro invested (see the loop below),
+        # so the starting peak is 1.0, not a euro amount.
+        peak_value = 1.0
+
+        has_capital = "invested_capital" in portfolio_values.columns
 
         historical_data = []
         for _, row in portfolio_values.iterrows():
             total_value = row["total_value"]
-            total_return = ((total_value - initial_value) / initial_value) * 100
+            # Measure the gain against money paid in so far, otherwise a
+            # contribution shows up on the chart as an instant profit.
+            invested_so_far = (
+                float(row["invested_capital"]) if has_capital else initial_value
+            )
+            total_return = (
+                ((total_value - invested_so_far) / invested_so_far) * 100
+                if invested_so_far > 0
+                else 0
+            )
 
-            # Update peak
-            if total_value > peak_value:
-                peak_value = total_value
+            # Track the peak on value-per-euro-invested, not raw value. A
+            # contribution lifts the raw value without being a gain, which
+            # would otherwise reset the peak and hide a real drawdown.
+            indexed_value = (
+                total_value / invested_so_far if invested_so_far > 0 else 0
+            )
+            if indexed_value > peak_value:
+                peak_value = indexed_value
 
             # Calculate drawdown
-            drawdown = ((total_value - peak_value) / peak_value) * 100 if peak_value > 0 else 0
+            drawdown = (
+                ((indexed_value - peak_value) / peak_value) * 100
+                if peak_value > 0
+                else 0
+            )
 
             historical_data.append(
                 HistoricalDataPoint(
@@ -559,6 +728,7 @@ class PortfolioCalculator:
                     portfolio_value=Decimal(str(round(total_value, 2))),
                     ppr_value=Decimal(str(round(row["ppr_value"], 2))),
                     bitcoin_value=Decimal(str(round(row["bitcoin_value"], 2))),
+                    invested_capital=Decimal(str(round(invested_so_far, 2))),
                     total_return=Decimal(str(round(total_return, 2))),
                     drawdown=Decimal(str(round(drawdown, 2))),
                 )
