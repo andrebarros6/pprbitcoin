@@ -38,6 +38,14 @@ function Calculator() {
       setLoading(true);
       setError(null);
 
+      // Both portfolios share the same savings plan, so the only difference
+      // between them is the Bitcoin allocation.
+      const contribution = {
+        contribution_amount: monthlyContribution,
+        contribution_frequency:
+          monthlyContribution > 0 ? ('monthly' as const) : ('none' as const),
+      };
+
       // Portfolio 1: 100% PPR (no Bitcoin)
       const portfolio100PPR = {
         ppr_allocations: selectedPPRIds.map(pprId => ({
@@ -49,6 +57,7 @@ function Calculator() {
         start_date: startDate,
         end_date: endDate,
         rebalancing_frequency: rebalancingFrequency,
+        ...contribution,
       };
 
       // Portfolio 2: PPR + Bitcoin
@@ -65,6 +74,7 @@ function Calculator() {
         start_date: startDate,
         end_date: endDate,
         rebalancing_frequency: rebalancingFrequency,
+        ...contribution,
       };
 
       // Compare both portfolios
