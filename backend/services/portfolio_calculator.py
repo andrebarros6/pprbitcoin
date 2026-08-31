@@ -15,6 +15,7 @@ from models.bitcoin import BitcoinHistoricalData
 from models.portfolio import (
     PortfolioCalculationRequest,
     PortfolioCalculationResponse,
+    PortfolioReference,
     PerformanceMetrics,
     HistoricalDataPoint,
     AllocationBreakdown,
@@ -98,12 +99,76 @@ class PortfolioCalculator:
             request, pprs, portfolio_values
         )
 
+        # The counterfactual: the same savings plan without Bitcoin. This is
+        # the question the tool exists to answer, so it is computed alongside
+        # rather than left to the caller to request separately.
+        without_bitcoin = self._calculate_without_bitcoin(
+            request, aligned_data, pprs
+        )
+
         return PortfolioCalculationResponse(
             portfolio_config=request,
             metrics=metrics,
             historical_data=historical_data,
             allocation_breakdown=allocation_breakdown,
             calculation_date=date.today(),
+            without_bitcoin=without_bitcoin,
+        )
+
+    def _calculate_without_bitcoin(
+        self,
+        request: PortfolioCalculationRequest,
+        aligned_data: pd.DataFrame,
+        pprs: Dict[str, PPR],
+    ) -> Optional[PortfolioReference]:
+        """
+        Re-run the same plan with the Bitcoin share redistributed across the
+        PPR funds, so the two lines differ only in holding Bitcoin or not.
+
+        Returns None when there is no Bitcoin to remove, or when the PPR
+        weights cannot be renormalised (a 100% Bitcoin portfolio has no
+        PPR-only equivalent to compare against).
+
+        Args:
+            request: The original portfolio request
+            aligned_data: Already-aligned price data, reused so both runs
+                cover exactly the same dates
+            pprs: Dictionary of PPR objects
+
+        Returns:
+            The comparison portfolio, or None
+        """
+        if request.bitcoin_percentage <= 0:
+            return None
+
+        total_ppr = sum(a.allocation_percentage for a in request.ppr_allocations)
+        if total_ppr <= 0:
+            return None
+
+        # Scale the PPR weights up to fill the whole portfolio.
+        scale = Decimal("100") / total_ppr
+        ppr_only = request.model_copy(
+            update={
+                "bitcoin_percentage": Decimal("0"),
+                "ppr_allocations": [
+                    a.model_copy(
+                        update={"allocation_percentage": a.allocation_percentage * scale}
+                    )
+                    for a in request.ppr_allocations
+                ],
+            }
+        )
+
+        values = self._calculate_portfolio_values(aligned_data, ppr_only, pprs)
+        metrics = self._calculate_performance_metrics(
+            values, ppr_only.initial_investment
+        )
+        history = self._build_historical_data_points(values)
+
+        return PortfolioReference(
+            label="Sem Bitcoin (só PPR)",
+            metrics=metrics,
+            historical_data=history,
         )
 
     def _fetch_and_validate_pprs(

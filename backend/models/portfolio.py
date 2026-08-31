@@ -221,6 +221,34 @@ class PortfolioCalculationResponse(BaseModel):
         ...,
         description="Date when calculation was performed"
     )
+    without_bitcoin: Optional["PortfolioReference"] = Field(
+        default=None,
+        description=(
+            "The same PPR portfolio, same dates, same contributions, but with "
+            "no Bitcoin -- the counterfactual that answers 'what did adding "
+            "Bitcoin actually change?'. Null when the portfolio holds no "
+            "Bitcoin, since it would merely repeat the main result."
+        ),
+    )
+
+
+class PortfolioReference(BaseModel):
+    """
+    A comparison portfolio reported alongside the main result.
+
+    Deliberately carries only the headline numbers and the value series, not
+    the full response -- it exists to be drawn as a second line and summarised
+    in a sentence, not explored.
+    """
+    label: str = Field(..., description="Human-readable name for the comparison")
+    metrics: "PerformanceMetrics" = Field(..., description="Metrics for the comparison")
+    historical_data: List["HistoricalDataPoint"] = Field(
+        ...,
+        description="Value series for the comparison, aligned to the main result",
+    )
+
+
+PortfolioCalculationResponse.model_rebuild()
 
 
 class PortfolioComparisonResponse(BaseModel):
