@@ -1,5 +1,9 @@
 # FastAPI and server
 fastapi==0.109.0
+# Pinned explicitly: fastapi 0.109 requires starlette <0.36, but leaving it
+# unpinned lets a fresh install resolve a much newer starlette that has
+# dropped APIRouter's on_startup, which breaks the app at import time.
+starlette==0.35.1
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 
