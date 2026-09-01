@@ -28,10 +28,18 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
+    # Read the client IP from X-Forwarded-For. Required behind a proxy
+    # (Railway, Fly, Heroku, nginx) or every request appears to come from the
+    # proxy and the limit never fires. Must stay False when the server is
+    # exposed directly, since the header is otherwise trivially forged.
+    TRUST_PROXY_HEADERS: bool = False
 
     # Run the data-refresh scheduler inside the API process. Keep False when
     # running more than one instance, or the refresh runs once per instance.
     ENABLE_SCHEDULER: bool = False
+
+    # Serve the interactive API docs. Off in production by default; see app.py.
+    DOCS_ENABLED: bool = False
 
     # Sentry (Error Monitoring). Blank disables it entirely, so local runs
     # and CI never report anywhere.
