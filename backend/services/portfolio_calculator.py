@@ -757,14 +757,25 @@ class PortfolioCalculator:
 
         has_capital = "invested_capital" in portfolio_values.columns
 
+        # Read the columns out as plain Python lists once, rather than letting
+        # iterrows() build a fresh Series per row. Profiling a nine-year
+        # backtest put 95% of the total request time in this one loop -- 3,286
+        # Series constructions and 36,000 deepcopies to read five numbers.
+        dates = portfolio_values["date"].tolist()
+        total_values = portfolio_values["total_value"].tolist()
+        ppr_values = portfolio_values["ppr_value"].tolist()
+        bitcoin_values = portfolio_values["bitcoin_value"].tolist()
+        capital_values = (
+            portfolio_values["invested_capital"].tolist()
+            if has_capital
+            else [initial_value] * len(dates)
+        )
+
         historical_data = []
-        for _, row in portfolio_values.iterrows():
-            total_value = row["total_value"]
+        for i, total_value in enumerate(total_values):
             # Measure the gain against money paid in so far, otherwise a
             # contribution shows up on the chart as an instant profit.
-            invested_so_far = (
-                float(row["invested_capital"]) if has_capital else initial_value
-            )
+            invested_so_far = float(capital_values[i])
             total_return = (
                 ((total_value - invested_so_far) / invested_so_far) * 100
                 if invested_so_far > 0
@@ -789,10 +800,10 @@ class PortfolioCalculator:
 
             historical_data.append(
                 HistoricalDataPoint(
-                    data=row["date"],
+                    data=dates[i],
                     portfolio_value=Decimal(str(round(total_value, 2))),
-                    ppr_value=Decimal(str(round(row["ppr_value"], 2))),
-                    bitcoin_value=Decimal(str(round(row["bitcoin_value"], 2))),
+                    ppr_value=Decimal(str(round(ppr_values[i], 2))),
+                    bitcoin_value=Decimal(str(round(bitcoin_values[i], 2))),
                     invested_capital=Decimal(str(round(invested_so_far, 2))),
                     total_return=Decimal(str(round(total_return, 2))),
                     drawdown=Decimal(str(round(drawdown, 2))),
