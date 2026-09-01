@@ -92,18 +92,49 @@ async def lifespan(app: FastAPI):
     print("[STOP] Shutting down PPR Bitcoin API...")
 
 
-# Create FastAPI app
+# Create FastAPI app.
+#
+# The interactive docs enumerate every endpoint and its accepted shapes. That
+# is useful while developing and a free map for anyone probing the deployment,
+# so they are served only outside production. Set DOCS_ENABLED to override --
+# a genuinely public API may well want them on.
+_docs_on = settings.DOCS_ENABLED or settings.ENVIRONMENT != "production"
+
 app = FastAPI(
     title=settings.API_TITLE,
     description=settings.API_DESCRIPTION,
     version=settings.API_VERSION,
     debug=settings.DEBUG,
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/docs" if _docs_on else None,
+    redoc_url="/redoc" if _docs_on else None,
+    openapi_url="/openapi.json" if _docs_on else None,
 )
 
 # Rate limiting (see utils/rate_limit.py)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    """
+    Add the standard hardening headers to every response.
+
+    This API returns JSON rather than HTML, so the risk is smaller than for a
+    page, but a browser will still sniff and frame a JSON endpoint given the
+    chance. nosniff stops content-type guessing, DENY stops the responses being
+    framed, and HSTS keeps clients on TLS after the first visit.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if settings.ENVIRONMENT == "production":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 # Configure CORS
 app.add_middleware(
