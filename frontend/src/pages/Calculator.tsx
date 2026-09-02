@@ -115,8 +115,6 @@ function Calculator() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <DisclaimerBanner />
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Configuration */}
           <div className="lg:col-span-1 space-y-6">
@@ -178,6 +176,22 @@ function Calculator() {
                 {/* Comparison Summary */}
                 <div className="card bg-gradient-to-br from-bitcoin-50 to-orange-50 border-2 border-bitcoin-300">
                   <h3 className="text-xl font-bold text-gray-900 mb-4">📊 Resumo da Comparação</h3>
+
+                  {/* The risk-adjusted winner is the conclusion the whole page
+                      builds towards, so it leads the summary rather than
+                      trailing it as a footnote. */}
+                  <div className="bg-white rounded-lg border-2 border-bitcoin-400 p-5 mb-4">
+                    <p className="text-sm font-medium text-gray-600 mb-1">
+                      Melhor retorno ajustado ao risco
+                    </p>
+                    <p className="text-2xl font-bold text-bitcoin-600">
+                      {comparisonData.comparison_summary.recommended_portfolio.name}
+                    </p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      Maior Sharpe ratio: mais retorno por cada unidade de risco assumida.
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {[
                       {
@@ -222,10 +236,6 @@ function Calculator() {
                     ))}
                   </div>
 
-                  <p className="mt-4 text-sm text-gray-700">
-                    <span className="font-semibold">Melhor retorno ajustado ao risco:</span>{' '}
-                    {comparisonData.comparison_summary.recommended_portfolio.name}
-                  </p>
                 </div>
               </>
             ) : (
@@ -241,6 +251,12 @@ function Calculator() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Sources and caveats sit after the results: they qualify the numbers,
+            so they are read once the numbers exist rather than before. */}
+        <div className="mt-8">
+          <DisclaimerBanner />
         </div>
       </main>
 

@@ -7,6 +7,7 @@ export interface PPR {
   isin: string | null;
   categoria: string | null;  // Portuguese: category
   taxa_gestao: number | null;  // Portuguese: management fee (TER) - stored as percentage (e.g., 1.95 for 1.95%)
+  market_rank: number | null;  // Position by AUM among Portuguese PPRs; null outside the top 10
 }
 
 export interface PPRAllocation {
