@@ -9,6 +9,7 @@ from pydantic import BaseModel, UUID4
 from decimal import Decimal
 
 from database import get_db
+from data.fund_ranking import rank_for, sort_key
 from models.ppr import PPR, PPRHistoricalData
 
 router = APIRouter(prefix="/pprs", tags=["PPRs"])
@@ -22,6 +23,9 @@ class PPRResponse(BaseModel):
     isin: Optional[str]
     categoria: Optional[str]
     taxa_gestao: Optional[Decimal]
+    # Position by assets under management among Portuguese PPR products;
+    # None for funds outside the published top 10. See data/fund_ranking.py.
+    market_rank: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -58,11 +62,26 @@ def get_pprs(
     Returns:
         List of PPRs with metadata
     """
-    pprs = db.query(PPR).offset(skip).limit(limit).all()
-    total = db.query(PPR).count()
+    # Ordered by market position so the funds a saver is most likely to hold
+    # appear first. Sorting in Python rather than SQL because the ranking is a
+    # published external figure, not a stored column.
+    all_pprs = sorted(db.query(PPR).all(), key=lambda p: sort_key(p.nome))
+    total = len(all_pprs)
+    page = all_pprs[skip:skip + limit]
 
     return PPRListResponse(
-        data=pprs,
+        data=[
+            PPRResponse(
+                id=p.id,
+                nome=p.nome,
+                gestor=p.gestor,
+                isin=p.isin,
+                categoria=p.categoria,
+                taxa_gestao=p.taxa_gestao,
+                market_rank=rank_for(p.nome),
+            )
+            for p in page
+        ],
         total=total
     )
 

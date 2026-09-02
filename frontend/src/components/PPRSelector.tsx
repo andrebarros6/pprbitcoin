@@ -80,7 +80,20 @@ const PPRSelector: React.FC<PPRSelectorProps> = ({ selectedPPRIds, onChange }) =
               className="h-4 w-4 text-bitcoin-600 focus:ring-bitcoin-500 border-gray-300 rounded"
             />
             <div className="ml-3 flex-1">
-              <div className="font-medium text-gray-900">{ppr.nome}</div>
+              <div className="font-medium text-gray-900 flex items-center gap-2">
+                <span>{ppr.nome}</span>
+                {/* Market position by assets under management. Shown only for
+                    the top 10, since a rank is the quickest signal of whether
+                    this is a fund the reader is likely to already hold. */}
+                {ppr.market_rank && (
+                  <span
+                    className="text-xs font-semibold text-bitcoin-700 bg-bitcoin-100 rounded px-1.5 py-0.5"
+                    title={`${ppr.market_rank}.º maior PPR português por ativos sob gestão`}
+                  >
+                    #{ppr.market_rank}
+                  </span>
+                )}
+              </div>
               <div className="text-sm text-gray-500">
                 {/* TEC (Taxa de Encargos Correntes) as published by the CMVM
                     register. It is the ongoing charges figure -- management,
