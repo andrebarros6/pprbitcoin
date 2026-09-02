@@ -30,26 +30,34 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
     return Number(value).toFixed(2);
   };
 
+  const BETTER = 'bg-green-50 font-semibold text-green-700';
+  const WORSE = 'text-red-700';
+
   const getBetterClass = (
     val1: string,
     val2: string,
-    higherIsBetter: boolean | null = true
+    higherIsBetter: boolean | null = true,
+    closerToZeroIsBetter = false
   ) => {
     // null means neither column wins -- used for figures that are equal by
     // construction, such as the capital paid into both plans.
     if (higherIsBetter === null) return '';
 
-    const num1 = Number(val1);
-    const num2 = Number(val2);
+    let num1 = Number(val1);
+    let num2 = Number(val2);
+    if (!Number.isFinite(num1) || !Number.isFinite(num2)) return '';
 
-    if (higherIsBetter) {
-      if (num1 > num2) return 'bg-green-50 font-semibold text-green-700';
-      if (num2 > num1) return '';
-    } else {
-      if (num1 < num2) return 'bg-green-50 font-semibold text-green-700';
-      if (num2 < num1) return '';
+    // Drawdown and worst-month are reported as negative numbers, so a plain
+    // "smaller is better" test picks the deeper loss: -36.98 < -15.60. What
+    // makes one better is being closer to zero, which is the magnitude.
+    if (closerToZeroIsBetter) {
+      num1 = Math.abs(num1);
+      num2 = Math.abs(num2);
     }
-    return '';
+
+    if (num1 === num2) return '';
+    const firstWins = higherIsBetter ? num1 > num2 : num1 < num2;
+    return firstWins ? BETTER : WORSE;
   };
 
   // With recurring contributions, CAGR compounds a starting sum that no
@@ -137,6 +145,7 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
       ppr: formatPercentage(metrics100PPR.max_drawdown),
       btc: formatPercentage(metricsPPRBTC.max_drawdown),
       higherIsBetter: false,
+      closerToZeroIsBetter: true,
       tooltip: 'Maior queda de pico a vale (mais próximo de 0 é melhor)',
     },
     {
@@ -151,6 +160,7 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
       ppr: formatPercentage(metrics100PPR.worst_month),
       btc: formatPercentage(metricsPPRBTC.worst_month),
       higherIsBetter: false,
+      closerToZeroIsBetter: true,
       tooltip: 'Pior retorno mensal (mais próximo de 0 é melhor)',
     },
   ];
@@ -184,7 +194,8 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
                   className={`py-3 px-4 text-right ${getBetterClass(
                     metric.ppr.replace(/[^0-9.-]/g, ''),
                     metric.btc.replace(/[^0-9.-]/g, ''),
-                    metric.higherIsBetter
+                    metric.higherIsBetter,
+                    metric.closerToZeroIsBetter
                   )}`}
                 >
                   {metric.ppr}
@@ -193,7 +204,8 @@ const MetricsComparisonTable: React.FC<MetricsComparisonTableProps> = ({
                   className={`py-3 px-4 text-right ${getBetterClass(
                     metric.btc.replace(/[^0-9.-]/g, ''),
                     metric.ppr.replace(/[^0-9.-]/g, ''),
-                    metric.higherIsBetter
+                    metric.higherIsBetter,
+                    metric.closerToZeroIsBetter
                   )}`}
                 >
                   {metric.btc}

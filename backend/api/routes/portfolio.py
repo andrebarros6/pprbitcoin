@@ -262,14 +262,26 @@ def _build_comparison_summary(
         "final_value",
     ]
 
+    # Metrics where a smaller number is the better outcome.
+    lower_is_better = {"volatility"}
+    # Losses are reported as negative numbers, so "best" means closest to zero
+    # rather than smallest -- min() would name the deepest drawdown the winner.
+    closest_to_zero_is_better = {"max_drawdown"}
+
     for metric in metrics_to_compare:
         values = [float(getattr(result.metrics, metric)) for result in results]
+
+        if metric in closest_to_zero_is_better:
+            best_index = min(range(len(values)), key=lambda i: abs(values[i]))
+        elif metric in lower_is_better:
+            best_index = values.index(min(values))
+        else:
+            best_index = values.index(max(values))
+
         summary["metrics_comparison"][metric] = {
             "values": values,
-            "best_index": values.index(max(values)) if metric != "max_drawdown" and metric != "volatility" else values.index(min(values)),
-            "best_portfolio": portfolio_names[
-                values.index(max(values)) if metric != "max_drawdown" and metric != "volatility" else values.index(min(values))
-            ],
+            "best_index": best_index,
+            "best_portfolio": portfolio_names[best_index],
         }
 
     # Overall winner (based on Sharpe ratio)
